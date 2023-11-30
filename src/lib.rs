@@ -1,4 +1,4 @@
-mod format;
+pub mod format;
 mod parser;
 
 #[cfg(test)]

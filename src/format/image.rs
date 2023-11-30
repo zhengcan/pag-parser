@@ -1,15 +1,31 @@
-use crate::format::ByteData;
+use nom::{number::complete::le_f32, sequence::tuple};
 
-use super::TagBlock;
-
-#[derive(Debug)]
-pub struct BitmapRect {}
+use super::{
+    primitive::{parse_encode_i32, parse_encode_u32},
+    ByteData, StreamParser, TagBlock,
+};
 
 /// ImageTables 是图⽚信息的合集。
 #[derive(Debug)]
 pub struct ImageTables {
     pub count: i32,
     pub images: Vec<ImageBytes>,
+}
+
+impl StreamParser for ImageTables {
+    fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+        log::debug!("parse_ImageTables <= {} bytes", input.len());
+        let (mut input, count) = parse_encode_i32(input)?;
+        let mut images = vec![];
+        for _ in 0..count {
+            let (next, image) = ImageBytes::parse(input)?;
+            input = next;
+            images.push(image);
+        }
+        let result = Self { count, images };
+        log::debug!("parse_ImageTables => {:?}", result);
+        Ok((input, result))
+    }
 }
 
 /// BitmapCompositionBlock 位图序列帧标签。
@@ -32,11 +48,24 @@ pub struct BitmapSequence {
     pub bitmap_rect: Vec<BitmapRect>,
 }
 
+#[derive(Debug)]
+pub struct BitmapRect {}
+
 /// ImageReference 图⽚引⽤标签，存储的是⼀个图⽚的唯⼀ ID，通过 ID 索引真正的图⽚信息。
 #[derive(Debug)]
 pub struct ImageReference {
     // pub inner: AttributeBlock,
     pub id: u32,
+}
+
+impl StreamParser for ImageReference {
+    fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+        log::debug!("parse_ImageReference <= {} bytes", input.len());
+        let (input, id) = parse_encode_u32(input)?;
+        let result = Self { id };
+        log::debug!("parse_ImageReference => {:?}", result);
+        Ok((input, result))
+    }
 }
 
 /// ImageBytes 图⽚标签，存储了压缩后的图⽚相关属性信息。
@@ -46,12 +75,37 @@ pub struct ImageBytes {
     pub file_bytes: ByteData,
 }
 
+impl StreamParser for ImageBytes {
+    fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+        log::debug!("parse_ImageBytes <= {} bytes", input.len());
+        let (input, (id, file_bytes)) = tuple((parse_encode_u32, ByteData::parse))(input)?;
+        let result = Self { id, file_bytes };
+        log::debug!("parse_ImageBytes => {:?}", result);
+        Ok((input, result))
+    }
+}
+
 /// ImageBytes2 图⽚标签版本 2，除了存储 ImageBytes 的信息外，还允许记录图⽚的缩放参数，通常根据实际最⼤⽤到的⼤⼩来存储图⽚，⽽不是按原始⼤⼩。
 #[derive(Debug)]
 pub struct ImageBytes2 {
     pub id: u32,
     pub file_bytes: ByteData,
     pub scale_factor: f32,
+}
+
+impl StreamParser for ImageBytes2 {
+    fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+        log::debug!("parse_ImageBytes2 <= {} bytes", input.len());
+        let (input, (id, file_bytes, scale_factor)) =
+            tuple((parse_encode_u32, ByteData::parse, le_f32))(input)?;
+        let result = Self {
+            id,
+            file_bytes,
+            scale_factor,
+        };
+        log::debug!("parse_ImageBytes2 => {:?}", result);
+        Ok((input, result))
+    }
 }
 
 /// ImageBytes3 图⽚标签版本 3， 除了包含 ImageBytes2 的信息外，还允许记录剔除透明边框后的图⽚。
@@ -64,4 +118,31 @@ pub struct ImageBytes3 {
     pub height: i32,
     pub anchor_x: i32,
     pub anchor_y: i32,
+}
+
+impl StreamParser for ImageBytes3 {
+    fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+        log::debug!("parse_ImageBytes3 <= {} bytes", input.len());
+        let (input, (id, file_bytes, scale_factor, width, height, anchor_x, anchor_y)) =
+            tuple((
+                parse_encode_u32,
+                ByteData::parse,
+                le_f32,
+                parse_encode_i32,
+                parse_encode_i32,
+                parse_encode_i32,
+                parse_encode_i32,
+            ))(input)?;
+        let result = Self {
+            id,
+            file_bytes,
+            scale_factor,
+            width,
+            height,
+            anchor_x,
+            anchor_y,
+        };
+        log::debug!("parse_ImageBytes3 => {:?}", result);
+        Ok((input, result))
+    }
 }

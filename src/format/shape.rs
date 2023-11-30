@@ -1,12 +1,27 @@
-use crate::format::*;
+use nom::{number::complete::le_f32, sequence::tuple, IResult};
 
-use super::{AttributeBlock, TagBlock};
+use crate::format::primitive::{parse_encode_i32, parse_encode_u32, parse_encode_u64};
+
+use super::{
+    BlendMode, Color, CompositeOrder, FillRule, GradientFillType, LineCap, LineJoin,
+    MergePathsMode, Path, Point, StreamParser, TagBlock, TrimPathsType,
+};
 
 /// VectorCompositionBlock 是⽮量图形的合集。⾥⾯可以包含简单的⽮量图形，也可以再包含⼀个或是多个 VectorComposition。
 #[derive(Debug)]
 pub struct VectorCompositionBlock {
     pub id: u32,
     pub tag_block: TagBlock,
+}
+
+impl StreamParser for VectorCompositionBlock {
+    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+        log::debug!("parse_VectorCompositionBlock <= {} bytes", input.len());
+        let (input, (id, tag_block)) = tuple((parse_encode_u32, TagBlock::parse))(input)?;
+        let result = Self { id, tag_block };
+        log::debug!("parse_VectorCompositionBlock => {:?}", result);
+        Ok((input, result))
+    }
 }
 
 /// CompositionAttribute 存储了 Composition 基本属性信息。⾥⾯可以包含简单的⽮量图形，也可以再包含⼀个或是多个 VectorComposition。
@@ -19,10 +34,37 @@ pub struct CompositionAttributes {
     pub background_color: Color,
 }
 
+impl StreamParser for CompositionAttributes {
+    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+        log::debug!(
+            "parse_CompositionAttributes <= {} bytes: {:?}",
+            input.len(),
+            &input[0..8]
+        );
+
+        let (input, (width, height, duration, frame_rate, background_color)) = tuple((
+            parse_encode_i32,
+            parse_encode_i32,
+            parse_encode_u64,
+            le_f32,
+            Color::parse,
+        ))(input)?;
+        let result = Self {
+            width,
+            height,
+            duration,
+            frame_rate,
+            background_color,
+        };
+
+        log::debug!("parse_CompositionAttributes => {:?}", result);
+        Ok((input, result))
+    }
+}
+
 /// ShapeGroup 投影标签。
 #[derive(Debug)]
 pub struct ShapeGroup {
-    pub inner: AttributeBlock,
     pub blend_mode: BlendMode,
     pub anchor_point: Point,
     pub position: Point,
@@ -37,7 +79,6 @@ pub struct ShapeGroup {
 /// 矩形标签。
 #[derive(Debug)]
 pub struct Rectangle {
-    pub inner: AttributeBlock,
     pub reversed: bool,
     pub size: Point,
     pub position: Point,
@@ -47,7 +88,6 @@ pub struct Rectangle {
 /// Ellipse 标签。
 #[derive(Debug)]
 pub struct Ellipse {
-    pub inner: AttributeBlock,
     pub reversed: bool,
     pub size: Point,
     pub position: Point,
@@ -56,7 +96,6 @@ pub struct Ellipse {
 /// 多边星形标签。
 #[derive(Debug)]
 pub struct PolyStar {
-    pub inner: AttributeBlock,
     pub reversed: bool,
     pub poly_type: u8,
     pub points: f32,
@@ -71,14 +110,12 @@ pub struct PolyStar {
 /// ShapePath 标签。
 #[derive(Debug)]
 pub struct ShapePath {
-    pub inner: AttributeBlock,
     pub shape_path: Path,
 }
 
 /// Fill 标签。
 #[derive(Debug)]
 pub struct Fill {
-    pub inner: AttributeBlock,
     pub blend_mode: BlendMode,
     pub composite: CompositeOrder,
     pub fill_rule: FillRule,
@@ -89,7 +126,6 @@ pub struct Fill {
 /// Stroke 标签。
 #[derive(Debug)]
 pub struct Stroke {
-    pub inner: AttributeBlock,
     pub blend_mode: BlendMode,
     pub line_cap: LineCap,
     pub line_join: LineJoin,
@@ -102,7 +138,6 @@ pub struct Stroke {
 /// GradientFill 标签。
 #[derive(Debug)]
 pub struct GradientFill {
-    pub inner: AttributeBlock,
     pub blend_mode: BlendMode,
     pub composite: CompositeOrder,
     pub fill_rule: FillRule,
@@ -116,7 +151,6 @@ pub struct GradientFill {
 /// GradientStroke 标签。
 #[derive(Debug)]
 pub struct GradientStroke {
-    pub inner: AttributeBlock,
     pub blend_mode: BlendMode,
     pub composite: CompositeOrder,
     pub fill_type: GradientFillType,
@@ -136,14 +170,12 @@ pub struct GradientStroke {
 /// MergePaths 标签。
 #[derive(Debug)]
 pub struct MergePaths {
-    pub inner: AttributeBlock,
     pub mode: MergePathsMode,
 }
 
 /// TrimPaths 标签。
 #[derive(Debug)]
 pub struct TrimPaths {
-    pub inner: AttributeBlock,
     pub start: f32,
     pub end: f32,
     pub offset: f32,
@@ -153,6 +185,5 @@ pub struct TrimPaths {
 /// RoundCorners 标签。
 #[derive(Debug)]
 pub struct RoundCorners {
-    pub inner: AttributeBlock,
     pub radius: f32,
 }
