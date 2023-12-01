@@ -1,7 +1,7 @@
-use macros::Parsable;
-use pag_parser::format;
+use macros::ParsableEnum;
+use pag_parser::{format, parser};
 
-#[derive(Debug, Parsable)]
+#[derive(Debug, ParsableEnum)]
 #[repr(u8)]
 pub enum MyEnum {
     Zero,

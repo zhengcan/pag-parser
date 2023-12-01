@@ -1,10 +1,13 @@
 use nom::{number::complete::le_f32, sequence::tuple, IResult};
 
-use crate::format::primitive::{parse_encode_i32, parse_encode_u32, parse_encode_u64};
+use crate::{
+    format::primitive::{parse_encode_i32, parse_encode_u32, parse_encode_u64},
+    parser::{ParseError, Parser},
+};
 
 use super::{
-    BlendMode, Color, CompositeOrder, FillRule, GradientFillType, LineCap, LineJoin,
-    MergePathsMode, Path, Point, StreamParser, TagBlock, TrimPathsType,
+    BlendMode, Color, CompositeOrder, ContextualParsable, FillRule, GradientFillType, LineCap,
+    LineJoin, MergePathsMode, ParserContext, Path, Point, StreamParser, TagBlock, TrimPathsType,
 };
 
 /// VectorCompositionBlock 是⽮量图形的合集。⾥⾯可以包含简单的⽮量图形，也可以再包含⼀个或是多个 VectorComposition。
@@ -12,6 +15,16 @@ use super::{
 pub struct VectorCompositionBlock {
     pub id: u32,
     pub tag_block: TagBlock,
+}
+
+impl ContextualParsable for VectorCompositionBlock {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let id = parser.next_id()?;
+        let tag_block = parser.next_tag_block(ctx)?;
+        let result = Self { id, tag_block };
+        log::debug!("parse_VectorCompositionBlock => {:?}", result);
+        Ok(result)
+    }
 }
 
 impl StreamParser for VectorCompositionBlock {
@@ -34,21 +47,14 @@ pub struct CompositionAttributes {
     pub background_color: Color,
 }
 
-impl StreamParser for CompositionAttributes {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!(
-            "parse_CompositionAttributes <= {} bytes: {:?}",
-            input.len(),
-            &input[0..8]
-        );
+impl ContextualParsable for CompositionAttributes {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let width = parser.next_encoded_i32()?;
+        let height = parser.next_encoded_i32()?;
+        let duration = parser.next_encoded_u64()?;
+        let frame_rate = parser.next_f32()?;
+        let background_color = parser.next_color()?;
 
-        let (input, (width, height, duration, frame_rate, background_color)) = tuple((
-            parse_encode_i32,
-            parse_encode_i32,
-            parse_encode_u64,
-            le_f32,
-            Color::parse,
-        ))(input)?;
         let result = Self {
             width,
             height,
@@ -58,9 +64,37 @@ impl StreamParser for CompositionAttributes {
         };
 
         log::debug!("parse_CompositionAttributes => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
+
+// impl StreamParser for CompositionAttributes {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!(
+//             "parse_CompositionAttributes <= {} bytes: {:?}",
+//             input.len(),
+//             &input[0..8]
+//         );
+
+//         let (input, (width, height, duration, frame_rate, background_color)) = tuple((
+//             parse_encode_i32,
+//             parse_encode_i32,
+//             parse_encode_u64,
+//             le_f32,
+//             Color::parse,
+//         ))(input)?;
+//         let result = Self {
+//             width,
+//             height,
+//             duration,
+//             frame_rate,
+//             background_color,
+//         };
+
+//         log::debug!("parse_CompositionAttributes => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// ShapeGroup 投影标签。
 #[derive(Debug)]

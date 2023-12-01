@@ -9,6 +9,7 @@ edition = "2021"
 tokio = { workspace = true }
 nom = { workspace = true }
 num_enum = { workspace = true }
+thiserror = { workspace = true }
 log = { workspace = true }
 macros = { workspace = true }
 
@@ -28,6 +29,7 @@ macros = { path = "crates/macros" }
 tokio = { version = "*", features = ["full"] }
 nom = "*"
 num_enum = "*"
+thiserror = "*"
 log = "*"
 env_logger = "*"
 proc-macro2 = "1.0"

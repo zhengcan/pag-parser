@@ -203,19 +203,19 @@ impl StreamParser for TagBlock {
         log::debug!("parse_TagBlock <= {} bytes", input.len());
         let mut tags = vec![];
         let mut input = input;
-        loop {
-            let (next, tag) = Tag::parse_with(input, ctx)?;
-            input = next;
-            match tag.header.code {
-                TagCode::Unknown(_) => log::warn!("tag = {:?}", tag.header),
-                _ => log::info!("tag = {:?}", tag.header),
-            };
-            let code = tag.header.code;
-            tags.push(tag);
-            if code == TagCode::End {
-                break;
-            }
-        }
+        // loop {
+        //     let (next, tag) = Tag::parse_with(input, ctx.clone())?;
+        //     input = next;
+        //     match tag.header.code {
+        //         TagCode::Unknown(_) => log::warn!("tag = {:?}", tag.header),
+        //         _ => log::info!("tag = {:?}", tag.header),
+        //     };
+        //     let code = tag.header.code;
+        //     tags.push(tag);
+        //     if code == TagCode::End {
+        //         break;
+        //     }
+        // }
         Ok((input, TagBlock { tags }))
     }
 }
@@ -226,49 +226,63 @@ pub struct Tag {
     pub body: TagBody,
 }
 
-impl StreamParser for Tag {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        Self::parse_with(input, ())
-    }
+impl Tag {
+    pub const EMPTY: Tag = Self {
+        header: TagHeader {
+            code: TagCode::End,
+            length: 0,
+        },
+        body: TagBody::End,
+    };
 
-    fn parse_with(input: &[u8], ctx: impl ParserContext) -> IResult<&[u8], Self> {
+    pub fn is_empty(&self) -> bool {
+        self.header.code == TagCode::End
+    }
+}
+
+impl ContextualParsable for Tag {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         log::debug!(
             "parse_Tag <= {} bytes: {:?}",
-            input.len(),
-            &input[0..min(16, input.len())]
+            parser.remain(),
+            parser.peek(16)
         );
-        let (input, header) = TagHeader::parse(input)?;
-        let (input, body) = nom::bytes::complete::take(header.length)(input)?;
+
+        let header = TagHeader::parse_a(parser)?;
+        let ctx = ctx.with_tag_code(header.code);
+        let body_parser = &mut parser.new_slice(header.length as usize)?;
+        let body = body_parser.buffer();
+
         let body = match header.code {
             TagCode::End => TagBody::End,
-            TagCode::FontTables => TagBody::FontTables(FontTables::parse_block_with(body, ctx)?),
-            TagCode::VectorCompositionBlock => TagBody::VectorCompositionBlock(
-                VectorCompositionBlock::parse_block_with(body, ctx)?,
-            ),
+            TagCode::FontTables => TagBody::FontTables(FontTables::parse_b(body_parser, ctx)?),
+            TagCode::VectorCompositionBlock => {
+                TagBody::VectorCompositionBlock(VectorCompositionBlock::parse_b(body_parser, ctx)?)
+            }
             TagCode::CompositionAttributes => {
-                TagBody::CompositionAttributes(CompositionAttributes::parse_block_with(body, ctx)?)
+                TagBody::CompositionAttributes(CompositionAttributes::parse_b(body_parser, ctx)?)
             }
-            TagCode::ImageTables => TagBody::ImageTables(ImageTables::parse_block_with(body, ctx)?),
-            TagCode::LayerBlock => TagBody::LayerBlock(LayerBlock::parse_block_with(body, ctx)?),
+            TagCode::ImageTables => TagBody::ImageTables(ImageTables::parse_b(body_parser, ctx)?),
+            TagCode::LayerBlock => TagBody::LayerBlock(LayerBlock::parse_b(body_parser, ctx)?),
             TagCode::LayerAttributes => {
-                TagBody::LayerAttributes(LayerAttributes::parse_block_with(body, ctx)?)
+                TagBody::LayerAttributes(LayerAttributes::parse_b(body_parser, ctx)?)
             }
-            TagCode::SolidColor => TagBody::SolidColor(SolidColor::parse_block_with(body, ctx)?),
-            TagCode::TextSource => TagBody::TextSource(TextSource::parse_block_with(body, ctx)?),
+            TagCode::SolidColor => TagBody::SolidColor(SolidColor::parse_b(body_parser, ctx)?),
+            TagCode::TextSource => TagBody::TextSource(TextSource::parse_b(body_parser, ctx)?),
             TagCode::DeprecatedTextPathOption => {
-                TagBody::TextPathOption(TextPathOption::parse_block_with(body, ctx)?)
+                TagBody::TextPathOption(TextPathOption::parse_b(body_parser, ctx)?)
             }
             TagCode::TextMoreOption => {
-                TagBody::TextMoreOption(TextMoreOption::parse_block_with(body, ctx)?)
+                TagBody::TextMoreOption(TextMoreOption::parse_b(body_parser, ctx)?)
             }
             TagCode::ImageReference => {
-                TagBody::ImageReference(ImageReference::parse_block_with(body, ctx)?)
+                TagBody::ImageReference(ImageReference::parse_b(body_parser, ctx)?)
             }
             TagCode::CompositionReference => {
-                TagBody::CompositionReference(CompositionReference::parse_block_with(body, ctx)?)
+                TagBody::CompositionReference(CompositionReference::parse_b(body_parser, ctx)?)
             }
-            TagCode::Transform2D => TagBody::Transform2D(Transform2D::parse_block_with(body, ctx)?),
-            TagCode::Mask => TagBody::Mask(Mask::parse_block_with(body, ctx)?),
+            TagCode::Transform2D => TagBody::Transform2D(Transform2D::parse_b(body_parser, ctx)?),
+            TagCode::Mask => TagBody::Mask(Mask::parse_b(body_parser, ctx)?),
             // TagCode::ShapeGroup => TagBody::ShapeGroup(ShapeGroup::parse_block(body, ctx)?),
             // TagCode::Rectangle => TagBody::Rectangle(Rectangle::parse_block(body, ctx)?),
             // TagCode::Ellipse => TagBody::Ellipse(Ellipse::parse_block(body, ctx)?),
@@ -296,14 +310,14 @@ impl StreamParser for Tag {
             //     TagBody::BitmapCompositionBlock(BitmapCompositionBlock::parse_block(body, ctx)?)
             // }
             // TagCode::BitmapSequence => TagBody::BitmapSequence(BitmapSequence::parse_block(body, ctx)?),
-            TagCode::ImageBytes => TagBody::ImageBytes(ImageBytes::parse_block_with(body, ctx)?),
-            TagCode::ImageBytes2 => TagBody::ImageBytes2(ImageBytes2::parse_block_with(body, ctx)?),
-            TagCode::ImageBytes3 => TagBody::ImageBytes3(ImageBytes3::parse_block_with(body, ctx)?),
+            TagCode::ImageBytes => TagBody::ImageBytes(ImageBytes::parse_b(body_parser, ctx)?),
+            TagCode::ImageBytes2 => TagBody::ImageBytes2(ImageBytes2::parse_b(body_parser, ctx)?),
+            TagCode::ImageBytes3 => TagBody::ImageBytes3(ImageBytes3::parse_b(body_parser, ctx)?),
             TagCode::VideoCompositionBlock => {
-                TagBody::VideoCompositionBlock(VideoCompositionBlock::parse_block_with(body, ctx)?)
+                TagBody::VideoCompositionBlock(VideoCompositionBlock::parse_b(body_parser, ctx)?)
             }
             TagCode::VideoSequence => {
-                TagBody::VideoSequence(VideoSequence::parse_block_with(body, ctx)?)
+                TagBody::VideoSequence(VideoSequence::parse_b(body_parser, ctx)?)
             }
             // TagCode::LayerAttributesV2 => {
             //     TagBody::LayerAttributesV2(LayerAttributesV2::parse_block(body, ctx)?)
@@ -341,7 +355,7 @@ impl StreamParser for Tag {
             // }
             // TagCode::TextSourceV3 => TagBody::TextSourceV3(TextSourceV3::parse_block(body, ctx)?),
             TagCode::TextPathOption => {
-                TagBody::TextPathOption(TextPathOption::parse_block_with(body, ctx)?)
+                TagBody::TextPathOption(TextPathOption::parse_b(body_parser, ctx)?)
             }
             // TagCode::TextAnimator => TagBody::TextAnimator(TextAnimator::parse_block(body, ctx)?),
             // TagCode::TextRangeSelector => {
@@ -410,7 +424,7 @@ impl StreamParser for Tag {
             // }
             _ => TagBody::Raw(ByteData::from(body)),
         };
-        Ok((input, Self { header, body }))
+        Ok(Self { header, body })
     }
 }
 
@@ -423,18 +437,21 @@ pub struct TagHeader {
     pub length: u32,
 }
 
-impl StreamParser for TagHeader {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+impl Parsable for TagHeader {
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
         const MASK: u32 = 0b0011_1111;
         // log::debug!("parse_TagHeader <= {}", input.len(),);
 
-        let (mut input, code_and_length) = le_u16(input)?;
+        let code_and_length = parser.next_u16()?;
+
+        // let (mut input, code_and_length) = le_u16(input)?;
         let code = (code_and_length >> 6) as u8;
         let mut length = code_and_length as u32 & MASK;
         if length == MASK {
-            let (next, length_new) = le_u32(input)?;
-            input = next;
-            length = length_new;
+            // let (next, length_new) = le_u32(input)?;
+            // input = next;
+            // length = length_new;
+            length = parser.next_u32()?;
         }
         let result = Self {
             code: TagCode::from(code),
@@ -442,7 +459,7 @@ impl StreamParser for TagHeader {
         };
 
         log::debug!("parse_TagHeader => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
 

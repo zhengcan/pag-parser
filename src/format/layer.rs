@@ -4,12 +4,16 @@ use nom::{
     IResult,
 };
 
-use crate::format::{parse_bool, parse_enum, parse_time, AttributeType};
+use crate::{
+    format::{parse_bool, parse_enum, parse_time, AttributeType, Parsable, TagCode},
+    parser::{ParseError, Parser},
+};
 
 use super::{
     primitive::{parse_encode_u32, Time},
-    AttributeBlock, AttributeConfig, BlendMode, Color, CompositeOrder, LayerType, MaskMode, Path,
-    Point, Ratio, StreamParser, TagBlock, TrackMatteType,
+    AttributeBlock, AttributeConfig, BlendMode, Color, CompositeOrder, ContextualParsable,
+    LayerType, MaskMode, ParserContext, Path, Point, Ratio, StreamParser, TagBlock, TrackMatteType,
+    WithAttributeBlock,
 };
 
 /// LayerBlock 是图层信息的合集。
@@ -20,28 +24,43 @@ pub struct LayerBlock {
     pub tag_block: TagBlock,
 }
 
-impl StreamParser for LayerBlock {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!("parse_LayerBlock <= {} bytes", input.len());
-        let (input, (r#type, id)) = tuple((LayerType::parse, parse_encode_u32))(input)?;
-        // log::warn!("{:?}", r#type);
-        let (input, tag_block) = TagBlock::parse(input)?;
+impl ContextualParsable for LayerBlock {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let r#type = parser.next_enum()?;
+        let id = parser.next_id()?;
+        let tag_block = parser.next_tag_block(ctx.with_layer_type(r#type))?;
         let result = Self {
             r#type,
             id,
             tag_block,
         };
         log::debug!("parse_LayerBlock => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
+
+// impl StreamParser for LayerBlock {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!("parse_LayerBlock <= {} bytes", input.len());
+//         let (input, (r#type, id)) = tuple((LayerType::parse, parse_encode_u32))(input)?;
+//         // log::warn!("{:?}", r#type);
+//         let (input, tag_block) = TagBlock::parse(input)?;
+//         let result = Self {
+//             r#type,
+//             id,
+//             tag_block,
+//         };
+//         log::debug!("parse_LayerBlock => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// LayerAttributes 是图层的属性信息。
 #[derive(Debug)]
 pub struct LayerAttributes {
-    // pub inner: AttributeBlock,
     pub is_active: bool,
     pub auto_orientation: bool,
+    pub motion_blur: bool,
     pub parent: u32,
     pub stretch: Ratio,
     pub start_time: Time,
@@ -49,44 +68,113 @@ pub struct LayerAttributes {
     pub track_matte_type: TrackMatteType,
     pub time_remap: f32,
     pub duration: Time,
+    pub name: String,
 }
 
-impl StreamParser for LayerAttributes {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!("parse_LayerAttributes <= {} bytes", input.len());
-
-        let mut block = AttributeBlock::new(input);
+impl ContextualParsable for LayerAttributes {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let mut block = parser.new_attribute_block();
         let is_active = block.flag(AttributeConfig::BitFlag(true));
-        // v3 && !Camera => motionBlur
         let auto_orientation = block.flag(AttributeConfig::BitFlag(false));
+        // v3 && !Camera => motionBlur
+        let motion_blur = match (ctx.parent_code(), ctx.layer_type()) {
+            (Some(TagCode::LayerAttributesV3), Some(LayerType::Camera)) => {
+                block.flag(AttributeType::NotExisted)
+            }
+            (Some(TagCode::LayerAttributesV3), Some(_)) => {
+                block.flag(AttributeConfig::BitFlag(false))
+            }
+            _ => block.flag(AttributeType::NotExisted),
+        };
         let parent = block.flag(AttributeConfig::Value(0));
         let stretch = block.flag(AttributeConfig::Value(Ratio::new(1, 1)));
         let start_time = block.flag(AttributeConfig::Value(0));
         // !Camera => blendMode
-        let blend_mode = block.flag(AttributeConfig::Value(BlendMode::Normal));
+        let blend_mode = match ctx.layer_type() {
+            Some(LayerType::Camera) => block.flag(AttributeType::NotExisted),
+            _ => block.flag(AttributeConfig::Value(BlendMode::Normal)),
+        };
         // !Camera => track_matte_type
-        let track_matte_type = block.flag(AttributeConfig::Value(TrackMatteType::None));
+        let track_matte_type = match ctx.layer_type() {
+            Some(LayerType::Camera) => block.flag(AttributeType::NotExisted),
+            _ => block.flag(AttributeConfig::Value(TrackMatteType::None)),
+        };
         let time_remap = block.flag(AttributeConfig::SimpleProperty(0.));
         let duration = block.flag(AttributeConfig::FixedValue(0));
         // v2 || v3 => name
+        let name = match ctx.parent_code() {
+            Some(TagCode::LayerAttributesV2) | Some(TagCode::LayerAttributesV3) => {
+                block.flag(AttributeConfig::Value("".to_string()))
+            }
+            _ => block.flag(AttributeType::NotExisted),
+        };
 
-        let result = Self {
+        let mut result = Self {
             is_active: block.read(is_active).unwrap_or(true),
             auto_orientation: block.read(auto_orientation).unwrap_or(false),
+            motion_blur: block.read(motion_blur).unwrap_or(false),
             parent: block.read(parent).unwrap_or(0),
-            stretch: block.read(stretch).unwrap_or(Ratio::new(1, 1)),
+            stretch: block.read(stretch).unwrap_or(Ratio::one()),
             start_time: block.read(start_time).unwrap_or(0),
             blend_mode: block.read(blend_mode).unwrap_or(BlendMode::Normal),
             track_matte_type: block.read(track_matte_type).unwrap_or(TrackMatteType::None),
             time_remap: block.read(time_remap).unwrap_or(0.),
             duration: block.read(duration).unwrap_or(0),
+            name: block.read(name).unwrap_or_default(),
         };
 
-        let input = block.finish();
+        // The duration can not be zero, fix it when the value is parsed from an old file format.
+        if result.duration == 0 {
+            result.duration = 1;
+        }
+
+        // let input = block.finish();
         log::debug!("parse_LayerAttributes => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
+
+// impl StreamParser for LayerAttributes {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!("parse_LayerAttributes <= {} bytes", input.len());
+
+//         let mut block = AttributeBlock::new(input);
+//         let is_active = block.flag(AttributeConfig::BitFlag(true));
+//         // v3 && !Camera => motionBlur
+//         let auto_orientation = block.flag(AttributeConfig::BitFlag(false));
+//         let parent = block.flag(AttributeConfig::Value(0));
+//         let stretch = block.flag(AttributeConfig::Value(Ratio::new(1, 1)));
+//         let start_time = block.flag(AttributeConfig::Value(0));
+//         // !Camera => blendMode
+//         let blend_mode = block.flag(AttributeConfig::Value(BlendMode::Normal));
+//         // !Camera => track_matte_type
+//         let track_matte_type = block.flag(AttributeConfig::Value(TrackMatteType::None));
+//         let time_remap = block.flag(AttributeConfig::SimpleProperty(0.));
+//         let duration = block.flag(AttributeConfig::FixedValue(0));
+//         // v2 || v3 => name
+
+//         let mut result = Self {
+//             is_active: block.read(is_active).unwrap_or(true),
+//             auto_orientation: block.read(auto_orientation).unwrap_or(false),
+//             parent: block.read(parent).unwrap_or(0),
+//             stretch: block.read(stretch).unwrap_or(Ratio::new(1, 1)),
+//             start_time: block.read(start_time).unwrap_or(0),
+//             blend_mode: block.read(blend_mode).unwrap_or(BlendMode::Normal),
+//             track_matte_type: block.read(track_matte_type).unwrap_or(TrackMatteType::None),
+//             time_remap: block.read(time_remap).unwrap_or(0.),
+//             duration: block.read(duration).unwrap_or(0),
+//         };
+
+//         // The duration can not be zero, fix it when the value is parsed from an old file format.
+//         if result.duration == 0 {
+//             result.duration = 1;
+//         }
+
+//         let input = block.finish();
+//         log::debug!("parse_LayerAttributes => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// CompositionReference 图层组合索引标签，存储的是⼀个图层组合的唯⼀ ID，通过 ID 索引真正的图层组合。
 #[derive(Debug)]
@@ -95,18 +183,31 @@ pub struct CompositionReference {
     pub composition_start_time: Time,
 }
 
-impl StreamParser for CompositionReference {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!("parse_CompositionReference <= {} bytes", input.len());
-        let (input, (id, composition_start_time)) = tuple((parse_encode_u32, parse_time))(input)?;
+impl ContextualParsable for CompositionReference {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let id = parser.next_encoded_u32()?;
+        let composition_start_time = parser.next_time()?;
         let result = Self {
             id,
             composition_start_time,
         };
         log::debug!("parse_CompositionReference => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
+
+// impl StreamParser for CompositionReference {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!("parse_CompositionReference <= {} bytes", input.len());
+//         let (input, (id, composition_start_time)) = tuple((parse_encode_u32, parse_time))(input)?;
+//         let result = Self {
+//             id,
+//             composition_start_time,
+//         };
+//         log::debug!("parse_CompositionReference => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// Transform2D 2D 变换信息，包含：锚点，缩放，旋转，x 轴偏移，y 轴偏移等信息。
 #[derive(Debug)]
@@ -120,11 +221,9 @@ pub struct Transform2D {
     pub opacity: u8,
 }
 
-impl StreamParser for Transform2D {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!("parse_Transform2D <= {} bytes", input.len());
-
-        let mut block = AttributeBlock::new(input);
+impl ContextualParsable for Transform2D {
+    fn parse_b(parser: &mut impl Parser, _ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let mut block = parser.new_attribute_block();
         let anchor_point = block.flag(AttributeType::SpatialProperty);
         let position = block.flag(AttributeType::SpatialProperty);
         let x_position = block.flag(AttributeType::SimpleProperty);
@@ -142,12 +241,41 @@ impl StreamParser for Transform2D {
             rotation: block.read(rotation).unwrap_or(0.),
             opacity: block.read(opacity).unwrap_or(0xff),
         };
-        let input = block.finish();
+        // let input = block.finish();
 
         log::debug!("parse_Transform2D => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
+
+// impl StreamParser for Transform2D {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!("parse_Transform2D <= {} bytes", input.len());
+
+//         let mut block = AttributeBlock::new(input);
+//         let anchor_point = block.flag(AttributeType::SpatialProperty);
+//         let position = block.flag(AttributeType::SpatialProperty);
+//         let x_position = block.flag(AttributeType::SimpleProperty);
+//         let y_position = block.flag(AttributeType::SimpleProperty);
+//         let scale = block.flag(AttributeType::MultiDimensionProperty);
+//         let rotation = block.flag(AttributeType::SimpleProperty);
+//         let opacity = block.flag(AttributeType::SimpleProperty);
+
+//         let result = Self {
+//             anchor_point: block.read(anchor_point).unwrap_or(Point::zero()),
+//             position: block.read(position).unwrap_or(Point::zero()),
+//             x_position: block.read(x_position).unwrap_or(0.),
+//             y_position: block.read(y_position).unwrap_or(0.),
+//             scale: block.read(scale).unwrap_or(Point::one()),
+//             rotation: block.read(rotation).unwrap_or(0.),
+//             opacity: block.read(opacity).unwrap_or(0xff),
+//         };
+//         let input = block.finish();
+
+//         log::debug!("parse_Transform2D => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// Mask 遮罩标签。
 #[derive(Debug)]
@@ -160,11 +288,14 @@ pub struct Mask {
     pub mask_expansion: f32,
 }
 
-impl StreamParser for Mask {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!("parse_Mask <= {} bytes", input.len());
-        let (input, (id, inverted, mask_mode, mask_path, mask_opacity, mask_expansion)) =
-            tuple((le_u32, parse_bool, parse_enum, Path::parse, le_u8, le_f32))(input)?;
+impl ContextualParsable for Mask {
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let id = parser.next_id()?;
+        let inverted = parser.next_bool()?;
+        let mask_mode = parser.next_enum()?;
+        let mask_path = Path::parse_a(parser)?;
+        let mask_opacity = parser.next_u8()?;
+        let mask_expansion = parser.next_f32()?;
         let result = Self {
             id,
             inverted,
@@ -174,9 +305,27 @@ impl StreamParser for Mask {
             mask_expansion,
         };
         log::debug!("parse_Mask => {:?}", result);
-        Ok((input, result))
+        Ok(result)
     }
 }
+
+// impl StreamParser for Mask {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!("parse_Mask <= {} bytes", input.len());
+//         let (input, (id, inverted, mask_mode, mask_path, mask_opacity, mask_expansion)) =
+//             tuple((le_u32, parse_bool, parse_enum, Path::parse, le_u8, le_f32))(input)?;
+//         let result = Self {
+//             id,
+//             inverted,
+//             mask_mode,
+//             mask_path,
+//             mask_opacity,
+//             mask_expansion,
+//         };
+//         log::debug!("parse_Mask => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// Repeater 标签。
 #[derive(Debug)]

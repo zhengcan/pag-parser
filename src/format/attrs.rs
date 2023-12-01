@@ -1,4 +1,6 @@
-use super::StreamParser;
+use crate::parser::{self, Parser, SliceParser};
+
+use super::{Parsable, StreamParser};
 
 #[derive(Debug, Clone)]
 pub struct Bits<'a> {
@@ -42,10 +44,18 @@ impl<'a> Bits<'a> {
     pub fn finish(self) -> &'a [u8] {
         &self.buffer[(self.index + 7) / 8..]
     }
+
+    pub fn finish_to<'b>(self) -> SliceParser<'b>
+    where
+        'a: 'b,
+    {
+        SliceParser::new(self.finish())
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttributeType {
+    NotExisted,
     Value,
     FixedValue,
     SimpleProperty,
@@ -96,15 +106,57 @@ pub struct AttributeFlag {
     pub has_spatial: bool,
 }
 
+impl AttributeFlag {
+    pub const EXISTED: AttributeFlag = Self {
+        exist: true,
+        animatable: false,
+        has_spatial: false,
+    };
+
+    pub const NOT_EXISTED: AttributeFlag = Self {
+        exist: false,
+        animatable: false,
+        has_spatial: false,
+    };
+}
+
+pub trait AttributeValue
+where
+    Self: Sized,
+{
+    fn try_from_bool(value: bool) -> Option<Self> {
+        None
+    }
+
+    fn try_from_key_frames(key_frames: Vec<String>) -> Option<Self> {
+        None
+    }
+}
+
+impl AttributeValue for f32 {}
+
+impl AttributeValue for u8 {}
+
+impl AttributeValue for u32 {}
+
+impl AttributeValue for u64 {}
+
+impl AttributeValue for bool {
+    fn try_from_bool(value: bool) -> Option<Self> {
+        Some(value)
+    }
+}
+
+impl AttributeValue for String {}
+
 #[derive(Debug)]
 enum AttributeBlockState<'a> {
     Flag(Bits<'a>),
-    Content,
+    Content(SliceParser<'a>),
 }
 
 #[derive(Debug)]
 pub struct AttributeBlock<'a> {
-    buffer: &'a [u8],
     state: AttributeBlockState<'a>,
 }
 
@@ -112,7 +164,6 @@ impl<'a> AttributeBlock<'a> {
     pub fn new(input: &'a [u8]) -> Self {
         // log::warn!("AttributeBlock: << {:?}", &input[0..16]);
         AttributeBlock {
-            buffer: input,
             state: AttributeBlockState::Flag(Bits::new(input)),
         }
     }
@@ -140,13 +191,17 @@ impl<'a> AttributeBlock<'a> {
     pub fn flag(&mut self, r#type: impl Into<AttributeType>) -> (AttributeType, AttributeFlag) {
         let r#type = r#type.into();
         let flag = match &self.state {
-            AttributeBlockState::Flag(bits) => {
-                let mut bits = bits.clone();
-                let flag = self.next_flag(r#type, &mut bits);
-                self.state = AttributeBlockState::Flag(bits);
-                flag
-            }
-            AttributeBlockState::Content => AttributeFlag::default(),
+            AttributeBlockState::Flag(bits) => match r#type {
+                AttributeType::NotExisted => AttributeFlag::NOT_EXISTED,
+                AttributeType::FixedValue => AttributeFlag::EXISTED,
+                _ => {
+                    let mut bits = bits.clone();
+                    let flag = self.next_flag(r#type, &mut bits);
+                    self.state = AttributeBlockState::Flag(bits);
+                    flag
+                }
+            },
+            AttributeBlockState::Content(_) => AttributeFlag::default(),
         };
         (r#type, flag)
     }
@@ -180,23 +235,28 @@ impl<'a> AttributeBlock<'a> {
         return flag;
     }
 
-    pub fn read<T>(&mut self, flag: (impl Into<AttributeType>, AttributeFlag)) -> Option<T>
+    pub fn read<T>(
+        &mut self,
+        (r#type, flag): (impl Into<AttributeType>, AttributeFlag),
+    ) -> Option<T>
     where
-        T: StreamParser,
+        T: Parsable + AttributeValue,
     {
         if let AttributeBlockState::Flag(bits) = &self.state {
-            self.buffer = bits.clone().finish();
-            self.state = AttributeBlockState::Content;
+            self.state = AttributeBlockState::Content(bits.clone().finish_to());
         }
+        let parser = match &mut self.state {
+            AttributeBlockState::Content(parser) => parser,
+            _ => return None,
+        };
 
-        let r#type = flag.0.into();
-        let flag = flag.1;
-
+        let r#type = r#type.into();
         match r#type {
+            AttributeType::NotExisted => None,
             AttributeType::BitFlag => T::try_from_bool(flag.exist),
             AttributeType::FixedValue | AttributeType::Value => {
                 if flag.exist {
-                    self.parse()
+                    T::parse_a(parser).ok()
                 } else {
                     None
                 }
@@ -207,7 +267,7 @@ impl<'a> AttributeBlock<'a> {
                         let key_frames = vec![];
                         T::try_from_key_frames(key_frames)
                     } else {
-                        self.parse()
+                        T::parse_a(parser).ok()
                     }
                 } else {
                     None
@@ -216,23 +276,23 @@ impl<'a> AttributeBlock<'a> {
         }
     }
 
-    fn parse<T>(&mut self) -> Option<T>
-    where
-        T: StreamParser,
-    {
-        match T::parse(self.buffer) {
-            Ok((input, value)) => {
-                self.buffer = input;
-                Some(value)
-            }
-            Err(e) => {
-                log::error!("e = {:?}", e);
-                None
-            }
-        }
-    }
+    // fn parse<T>(&mut self, ) -> Option<T>
+    // where
+    //     T: Parsable,
+    // {
+    //     match T::parse_a(self.buffer) {
+    //         Ok((input, value)) => {
+    //             self.buffer = input;
+    //             Some(value)
+    //         }
+    //         Err(e) => {
+    //             log::error!("e = {:?}", e);
+    //             None
+    //         }
+    //     }
+    // }
 
-    pub fn finish(self) -> &'a [u8] {
-        self.buffer
-    }
+    // pub fn finish(self) -> &'a [u8] {
+    //     self.buffer
+    // }
 }

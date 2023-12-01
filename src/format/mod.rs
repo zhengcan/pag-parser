@@ -8,6 +8,8 @@ mod tag;
 mod text;
 mod video;
 
+use std::{fmt::Debug, rc::Rc};
+
 use nom::{bytes::complete::tag, number::complete::*, sequence::tuple, IResult};
 
 pub use attrs::*;
@@ -20,23 +22,171 @@ pub use tag::*;
 pub use text::*;
 pub use video::*;
 
-pub trait ParserContext: Copy {
+use crate::parser::{ParseError, Parser};
+
+pub trait ParserContext: Clone {
+    fn with_tag_code(&self, tag_code: TagCode) -> impl ParserContext;
+    fn with_layer_type(&self, layer_type: LayerType) -> impl ParserContext;
+
     fn as_bool(&self) -> bool;
+    fn parent_code(&self) -> Option<TagCode>;
+    fn layer_type(&self) -> Option<LayerType>;
+}
+
+#[derive(Debug, Clone)]
+struct DefaultParserContext {
+    tag_code: Option<TagCode>,
+    layer_type: Option<LayerType>,
+}
+
+impl ParserContext for DefaultParserContext {
+    fn with_tag_code(&self, tag_code: TagCode) -> impl ParserContext {
+        Self {
+            tag_code: Some(tag_code),
+            ..self.clone()
+        }
+    }
+
+    fn with_layer_type(&self, layer_type: LayerType) -> impl ParserContext {
+        Self {
+            layer_type: Some(layer_type),
+            ..self.clone()
+        }
+    }
+
+    fn as_bool(&self) -> bool {
+        false
+    }
+
+    fn parent_code(&self) -> Option<TagCode> {
+        None
+    }
+
+    fn layer_type(&self) -> Option<LayerType> {
+        self.layer_type
+    }
 }
 
 impl ParserContext for () {
+    fn with_tag_code(&self, tag_code: TagCode) -> impl ParserContext {
+        DefaultParserContext {
+            tag_code: Some(tag_code),
+            layer_type: None,
+        }
+    }
+
+    fn with_layer_type(&self, layer_type: LayerType) -> impl ParserContext {
+        DefaultParserContext {
+            tag_code: None,
+            layer_type: Some(layer_type),
+        }
+    }
+
     fn as_bool(&self) -> bool {
         false
+    }
+
+    fn parent_code(&self) -> Option<TagCode> {
+        None
+    }
+
+    fn layer_type(&self) -> Option<LayerType> {
+        None
     }
 }
 
 impl ParserContext for bool {
+    fn with_tag_code(&self, tag_code: TagCode) -> impl ParserContext {
+        DefaultParserContext {
+            tag_code: Some(tag_code),
+            layer_type: None,
+        }
+    }
+
+    fn with_layer_type(&self, layer_type: LayerType) -> impl ParserContext {
+        DefaultParserContext {
+            tag_code: None,
+            layer_type: Some(layer_type),
+        }
+    }
+
     fn as_bool(&self) -> bool {
         *self
     }
+
+    fn parent_code(&self) -> Option<TagCode> {
+        None
+    }
+
+    fn layer_type(&self) -> Option<LayerType> {
+        None
+    }
+}
+
+pub trait WithAttributeBlock {}
+
+pub trait WithTagBlock {
+    fn next_tag(&self) -> Result<Tag, ParseError>;
+}
+
+pub trait Parsable
+where
+    Self: Sized,
+{
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError>;
+}
+
+impl Parsable for f32 {
+    #[inline(always)]
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        parser.next_f32()
+    }
+}
+
+impl Parsable for u8 {
+    #[inline(always)]
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        parser.next_u8()
+    }
+}
+
+impl Parsable for u32 {
+    #[inline(always)]
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        parser.next_encoded_u32()
+    }
+}
+
+impl Parsable for u64 {
+    #[inline(always)]
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        parser.next_encoded_u64()
+    }
+}
+
+impl Parsable for bool {
+    #[inline(always)]
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        parser.next_bool()
+    }
+}
+
+impl Parsable for String {
+    #[inline(always)]
+    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        parser.next_string()
+    }
+}
+
+pub trait ContextualParsable
+where
+    Self: Sized,
+{
+    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError>;
 }
 
 /// 从流中解析
+#[deprecated]
 pub trait StreamParser
 where
     Self: Sized,
