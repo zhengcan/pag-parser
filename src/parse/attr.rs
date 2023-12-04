@@ -1,57 +1,4 @@
-use crate::parser::SliceParser;
-
-use super::Parsable;
-
-#[derive(Debug, Clone)]
-pub struct Bits<'a> {
-    buffer: &'a [u8],
-    index: usize,
-}
-
-impl<'a> Bits<'a> {
-    pub fn new(buffer: &'a [u8]) -> Self {
-        Self { buffer, index: 0 }
-    }
-
-    pub fn next(&mut self) -> bool {
-        let index = self.index;
-        self.index += 1;
-        self.get(index)
-    }
-
-    pub fn get(&self, index: usize) -> bool {
-        let (i, j) = (index / 8, index % 8);
-        // log::error!(
-        //     "i={i}, j={j}, b={}, r={}",
-        //     self.buffer[i],
-        //     (self.buffer[i] & (1 << j)) != 0
-        // );
-        if i >= self.buffer.len() {
-            false
-        } else {
-            let byte = self.buffer[i];
-            (byte & (1 << j)) != 0
-        }
-    }
-
-    pub fn option<T>(&self, index: usize, value: T) -> Option<T> {
-        match self.get(index) {
-            true => Some(value),
-            false => None,
-        }
-    }
-
-    pub fn finish(self) -> &'a [u8] {
-        &self.buffer[(self.index + 7) / 8..]
-    }
-
-    pub fn finish_to<'b>(self) -> SliceParser<'b>
-    where
-        'a: 'b,
-    {
-        SliceParser::new(self.finish())
-    }
-}
+use super::{bits::Bits, parsable::Parsable, parser::SliceParser};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttributeType {
@@ -168,26 +115,6 @@ impl<'a> AttributeBlock<'a> {
         }
     }
 
-    // fn next_bit(&mut self) -> bool {
-    //     match self.state {
-    //         AttributeBlockState::Flag(bit_index) => {
-    //             self.state = AttributeBlockState::Flag(bit_index + 1);
-    //             self.get_bit(bit_index)
-    //         }
-    //         AttributeBlockState::Content => false,
-    //     }
-    // }
-
-    // fn get_bit(&self, index: usize) -> bool {
-    //     let (i, j) = (index / 8, index % 8);
-    //     if i >= self.buffer.len() {
-    //         false
-    //     } else {
-    //         let byte = self.buffer[i];
-    //         (byte & (1 << j)) != 0
-    //     }
-    // }
-
     pub fn flag(&mut self, r#type: impl Into<AttributeType>) -> (AttributeType, AttributeFlag) {
         let r#type = r#type.into();
         let flag = match &self.state {
@@ -243,7 +170,7 @@ impl<'a> AttributeBlock<'a> {
         T: Parsable + AttributeValue,
     {
         if let AttributeBlockState::Flag(bits) = &self.state {
-            self.state = AttributeBlockState::Content(bits.clone().finish_to());
+            self.state = AttributeBlockState::Content(bits.clone().finish());
         }
         let parser = match &mut self.state {
             AttributeBlockState::Content(parser) => parser,
@@ -256,7 +183,7 @@ impl<'a> AttributeBlock<'a> {
             AttributeType::BitFlag => T::try_from_bool(flag.exist),
             AttributeType::FixedValue | AttributeType::Value => {
                 if flag.exist {
-                    T::parse(parser).ok()
+                    T::parse(parser, ()).ok()
                 } else {
                     None
                 }
@@ -267,7 +194,7 @@ impl<'a> AttributeBlock<'a> {
                         let key_frames = vec![];
                         T::try_from_key_frames(key_frames)
                     } else {
-                        T::parse(parser).ok()
+                        T::parse(parser, ()).ok()
                     }
                 } else {
                     None
@@ -275,24 +202,4 @@ impl<'a> AttributeBlock<'a> {
             }
         }
     }
-
-    // fn parse<T>(&mut self, ) -> Option<T>
-    // where
-    //     T: Parsable,
-    // {
-    //     match T::parse(self.buffer) {
-    //         Ok((input, value)) => {
-    //             self.buffer = input;
-    //             Some(value)
-    //         }
-    //         Err(e) => {
-    //             log::error!("e = {:?}", e);
-    //             None
-    //         }
-    //     }
-    // }
-
-    // pub fn finish(self) -> &'a [u8] {
-    //     self.buffer
-    // }
 }

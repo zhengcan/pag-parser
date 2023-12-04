@@ -12,6 +12,7 @@ num_enum = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 macros = { workspace = true }
+concat-idents = { workspace = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
@@ -35,3 +36,4 @@ env_logger = "*"
 proc-macro2 = "1.0"
 syn = { version = "2.0", features = ["full", "fold"] }
 quote = "1.0"
+concat-idents = "1"

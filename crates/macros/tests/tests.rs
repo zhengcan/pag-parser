@@ -1,5 +1,5 @@
 use macros::ParsableEnum;
-use pag_parser::{format, parser};
+use pag_parser::{format, parse};
 
 #[derive(Debug, ParsableEnum)]
 #[repr(u8)]

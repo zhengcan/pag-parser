@@ -1,8 +1,12 @@
 use std::fmt::Debug;
 
-use nom::IResult;
 use num_enum::FromPrimitive;
 use num_enum::IntoPrimitive;
+
+use crate::parse::Parsable;
+use crate::parse::ParseError;
+use crate::parse::Parser;
+use crate::parse::ParserContext;
 
 use super::image::*;
 use super::layer::*;
@@ -193,31 +197,20 @@ pub struct TagBlock {
     pub tags: Vec<Tag>,
 }
 
-// impl StreamParser for TagBlock {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         Self::parse_with(input, ())
-//     }
-
-//     fn parse_with(input: &[u8], ctx: impl ParserContext) -> IResult<&[u8], Self> {
-//         log::debug!("parse_TagBlock <= {} bytes", input.len());
-//         let mut tags = vec![];
-//         let mut input = input;
-//         // loop {
-//         //     let (next, tag) = Tag::parse_with(input, ctx.clone())?;
-//         //     input = next;
-//         //     match tag.header.code {
-//         //         TagCode::Unknown(_) => log::warn!("tag = {:?}", tag.header),
-//         //         _ => log::info!("tag = {:?}", tag.header),
-//         //     };
-//         //     let code = tag.header.code;
-//         //     tags.push(tag);
-//         //     if code == TagCode::End {
-//         //         break;
-//         //     }
-//         // }
-//         Ok((input, TagBlock { tags }))
-//     }
-// }
+impl Parsable for TagBlock {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let mut block = TagBlock { tags: vec![] };
+        loop {
+            let tag = Tag::parse(parser, ctx.clone())?;
+            match tag.header.code {
+                TagCode::End => {
+                    return Ok(block);
+                }
+                _ => block.tags.push(tag),
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Tag {
@@ -239,85 +232,78 @@ impl Tag {
     }
 }
 
-impl ContextualParsable for Tag {
-    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+impl Parsable for Tag {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         log::debug!(
             "parse_Tag <= {} bytes: {:?}",
             parser.remain(),
             parser.peek(16)
         );
 
-        let header = TagHeader::parse(parser)?;
+        let header = TagHeader::parse(parser, ctx.clone())?;
         let ctx = ctx.with_tag_code(header.code);
-        let body_parser = &mut parser.new_slice(header.length as usize)?;
-        let body = body_parser.buffer();
+        let body = &mut parser.new_slice(header.length as usize)?;
 
         let body = match header.code {
             TagCode::End => TagBody::End,
-            TagCode::FontTables => TagBody::FontTables(FontTables::parse_b(body_parser, ctx)?),
+            TagCode::FontTables => TagBody::FontTables(FontTables::parse(body, ctx)?),
             TagCode::VectorCompositionBlock => {
-                TagBody::VectorCompositionBlock(VectorCompositionBlock::parse_b(body_parser, ctx)?)
+                TagBody::VectorCompositionBlock(VectorCompositionBlock::parse(body, ctx)?)
             }
             TagCode::CompositionAttributes => {
-                TagBody::CompositionAttributes(CompositionAttributes::parse_b(body_parser, ctx)?)
+                TagBody::CompositionAttributes(CompositionAttributes::parse(body, ctx)?)
             }
-            TagCode::ImageTables => TagBody::ImageTables(ImageTables::parse_b(body_parser, ctx)?),
-            TagCode::LayerBlock => TagBody::LayerBlock(LayerBlock::parse_b(body_parser, ctx)?),
+            TagCode::ImageTables => TagBody::ImageTables(ImageTables::parse(body, ctx)?),
+            TagCode::LayerBlock => TagBody::LayerBlock(LayerBlock::parse(body, ctx)?),
             TagCode::LayerAttributes => {
-                TagBody::LayerAttributes(LayerAttributes::parse_b(body_parser, ctx)?)
+                TagBody::LayerAttributes(LayerAttributes::parse(body, ctx)?)
             }
-            TagCode::SolidColor => TagBody::SolidColor(SolidColor::parse_b(body_parser, ctx)?),
-            TagCode::TextSource => TagBody::TextSource(TextSource::parse_b(body_parser, ctx)?),
+            TagCode::SolidColor => TagBody::SolidColor(SolidColor::parse(body, ctx)?),
+            TagCode::TextSource => TagBody::TextSource(TextSource::parse(body, ctx)?),
             TagCode::DeprecatedTextPathOption => {
-                TagBody::TextPathOption(TextPathOption::parse_b(body_parser, ctx)?)
+                TagBody::TextPathOption(TextPathOption::parse(body, ctx)?)
             }
-            TagCode::TextMoreOption => {
-                TagBody::TextMoreOption(TextMoreOption::parse_b(body_parser, ctx)?)
-            }
-            TagCode::ImageReference => {
-                TagBody::ImageReference(ImageReference::parse_b(body_parser, ctx)?)
-            }
+            TagCode::TextMoreOption => TagBody::TextMoreOption(TextMoreOption::parse(body, ctx)?),
+            TagCode::ImageReference => TagBody::ImageReference(ImageReference::parse(body, ctx)?),
             TagCode::CompositionReference => {
-                TagBody::CompositionReference(CompositionReference::parse_b(body_parser, ctx)?)
+                TagBody::CompositionReference(CompositionReference::parse(body, ctx)?)
             }
-            TagCode::Transform2D => TagBody::Transform2D(Transform2D::parse_b(body_parser, ctx)?),
-            TagCode::Mask => TagBody::Mask(Mask::parse_b(body_parser, ctx)?),
-            // TagCode::ShapeGroup => TagBody::ShapeGroup(ShapeGroup::parse_block(body, ctx)?),
-            // TagCode::Rectangle => TagBody::Rectangle(Rectangle::parse_block(body, ctx)?),
-            // TagCode::Ellipse => TagBody::Ellipse(Ellipse::parse_block(body, ctx)?),
-            // TagCode::PolyStar => TagBody::PolyStar(PolyStar::parse_block(body, ctx)?),
-            // TagCode::ShapePath => TagBody::ShapePath(ShapePath::parse_block(body, ctx)?),
-            // TagCode::Fill => TagBody::Fill(Fill::parse_block(body, ctx)?),
-            // TagCode::Stroke => TagBody::Stroke(Stroke::parse_block(body, ctx)?),
-            // TagCode::GradientFill => TagBody::GradientFill(GradientFill::parse_block(body, ctx)?),
-            // TagCode::GradientStroke => TagBody::GradientStroke(GradientStroke::parse_block(body, ctx)?),
-            // TagCode::MergePaths => TagBody::MergePaths(MergePaths::parse_block(body, ctx)?),
-            // TagCode::TrimPaths => TagBody::TrimPaths(TrimPaths::parse_block(body, ctx)?),
-            // TagCode::Repeater => TagBody::Repeater(Repeater::parse_block(body, ctx)?),
-            // TagCode::RoundCorners => TagBody::RoundCorners(RoundCorners::parse_block(body, ctx)?),
-            // TagCode::Performance => TagBody::Performance(Performance::parse_block(body, ctx)?),
+            TagCode::Transform2D => TagBody::Transform2D(Transform2D::parse(body, ctx)?),
+            TagCode::Mask => TagBody::Mask(Mask::parse(body, ctx)?),
+            // TagCode::ShapeGroup => TagBody::ShapeGroup(ShapeGroup::parse(body, ctx)?),
+            // TagCode::Rectangle => TagBody::Rectangle(Rectangle::parse(body, ctx)?),
+            // TagCode::Ellipse => TagBody::Ellipse(Ellipse::parse(body, ctx)?),
+            // TagCode::PolyStar => TagBody::PolyStar(PolyStar::parse(body, ctx)?),
+            // TagCode::ShapePath => TagBody::ShapePath(ShapePath::parse(body, ctx)?),
+            // TagCode::Fill => TagBody::Fill(Fill::parse(body, ctx)?),
+            // TagCode::Stroke => TagBody::Stroke(Stroke::parse(body, ctx)?),
+            // TagCode::GradientFill => TagBody::GradientFill(GradientFill::parse(body, ctx)?),
+            // TagCode::GradientStroke => TagBody::GradientStroke(GradientStroke::parse(body, ctx)?),
+            // TagCode::MergePaths => TagBody::MergePaths(MergePaths::parse(body, ctx)?),
+            // TagCode::TrimPaths => TagBody::TrimPaths(TrimPaths::parse(body, ctx)?),
+            // TagCode::Repeater => TagBody::Repeater(Repeater::parse(body, ctx)?),
+            // TagCode::RoundCorners => TagBody::RoundCorners(RoundCorners::parse(body, ctx)?),
+            // TagCode::Performance => TagBody::Performance(Performance::parse(body, ctx)?),
             // TagCode::DropShadowStyle => {
-            //     TagBody::DropShadowStyle(DropShadowStyle::parse_block(body, ctx)?)
+            //     TagBody::DropShadowStyle(DropShadowStyle::parse(body, ctx)?)
             // }
-            // TagCode::CachePolicy => TagBody::CachePolicy(CachePolicy::parse_block(body, ctx)?),
-            // TagCode::FileAttributes => TagBody::FileAttributes(FileAttributes::parse_block(body, ctx)?),
+            // TagCode::CachePolicy => TagBody::CachePolicy(CachePolicy::parse(body, ctx)?),
+            // TagCode::FileAttributes => TagBody::FileAttributes(FileAttributes::parse(body, ctx)?),
             // TagCode::TimeStretchMode => {
-            //     TagBody::TimeStretchMode(TimeStretchMode::parse_block(body, ctx)?)
+            //     TagBody::TimeStretchMode(TimeStretchMode::parse(body, ctx)?)
             // }
-            // TagCode::Mp4Header => TagBody::Mp4Header(Mp4Header::parse_block(body, ctx)?),
+            // TagCode::Mp4Header => TagBody::Mp4Header(Mp4Header::parse(body, ctx)?),
             // TagCode::BitmapCompositionBlock => {
-            //     TagBody::BitmapCompositionBlock(BitmapCompositionBlock::parse_block(body, ctx)?)
+            //     TagBody::BitmapCompositionBlock(BitmapCompositionBlock::parse(body, ctx)?)
             // }
-            // TagCode::BitmapSequence => TagBody::BitmapSequence(BitmapSequence::parse_block(body, ctx)?),
-            TagCode::ImageBytes => TagBody::ImageBytes(ImageBytes::parse_b(body_parser, ctx)?),
-            TagCode::ImageBytes2 => TagBody::ImageBytes2(ImageBytes2::parse_b(body_parser, ctx)?),
-            TagCode::ImageBytes3 => TagBody::ImageBytes3(ImageBytes3::parse_b(body_parser, ctx)?),
+            // TagCode::BitmapSequence => TagBody::BitmapSequence(BitmapSequence::parse(body, ctx)?),
+            TagCode::ImageBytes => TagBody::ImageBytes(ImageBytes::parse(body, ctx)?),
+            TagCode::ImageBytes2 => TagBody::ImageBytes2(ImageBytes2::parse(body, ctx)?),
+            TagCode::ImageBytes3 => TagBody::ImageBytes3(ImageBytes3::parse(body, ctx)?),
             TagCode::VideoCompositionBlock => {
-                TagBody::VideoCompositionBlock(VideoCompositionBlock::parse_b(body_parser, ctx)?)
+                TagBody::VideoCompositionBlock(VideoCompositionBlock::parse(body, ctx)?)
             }
-            TagCode::VideoSequence => {
-                TagBody::VideoSequence(VideoSequence::parse_b(body_parser, ctx)?)
-            }
+            TagCode::VideoSequence => TagBody::VideoSequence(VideoSequence::parse(body, ctx)?),
             // TagCode::LayerAttributesV2 => {
             //     TagBody::LayerAttributesV2(LayerAttributesV2::parse_block(body, ctx)?)
             // }
@@ -353,9 +339,7 @@ impl ContextualParsable for Tag {
             //     TagBody::ImageFillRuleV2(ImageFillRuleV2::parse_block(body, ctx)?)
             // }
             // TagCode::TextSourceV3 => TagBody::TextSourceV3(TextSourceV3::parse_block(body, ctx)?),
-            TagCode::TextPathOption => {
-                TagBody::TextPathOption(TextPathOption::parse_b(body_parser, ctx)?)
-            }
+            TagCode::TextPathOption => TagBody::TextPathOption(TextPathOption::parse(body, ctx)?),
             // TagCode::TextAnimator => TagBody::TextAnimator(TextAnimator::parse_block(body, ctx)?),
             // TagCode::TextRangeSelector => {
             //     TagBody::TextRangeSelector(TextRangeSelector::parse_block(body, ctx)?)
@@ -421,7 +405,7 @@ impl ContextualParsable for Tag {
             // TagCode::ImageScaleModes => {
             //     TagBody::ImageScaleModes(ImageScaleModes::parse_block(body, ctx)?)
             // }
-            _ => TagBody::Raw(ByteData::from(body)),
+            _ => TagBody::Raw(ByteData::from(body.buffer())),
         };
         Ok(Self { header, body })
     }
@@ -437,7 +421,7 @@ pub struct TagHeader {
 }
 
 impl Parsable for TagHeader {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         const MASK: u32 = 0b0011_1111;
         // log::debug!("parse_TagHeader <= {}", input.len(),);
 

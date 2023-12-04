@@ -8,14 +8,14 @@ pub fn derive_parsable_enum(input: TokenStream) -> TokenStream {
     let name = input.ident;
 
     TokenStream::from(quote! {
-        impl crate::format::Parsable for #name {
+        impl crate::parse::Parsable for #name {
             #[inline(always)]
-            fn parse(parser: &mut impl crate::parser::Parser) -> Result<Self, crate::parser::ParseError> {
+            fn parse(parser: &mut impl crate::parse::Parser, _ctx: impl crate::parse::ParserContext) -> Result<Self, crate::parse::ParseError> {
                 parser.next_enum()
             }
         }
 
-        impl crate::format::AttributeValue for #name {
+        impl crate::parse::AttributeValue for #name {
         }
     })
 }

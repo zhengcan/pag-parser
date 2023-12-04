@@ -3,9 +3,9 @@ use std::fmt::Debug;
 use macros::ParsableEnum;
 use num_enum::{FromPrimitive, IntoPrimitive};
 
-use crate::parser::{ParseError, Parser};
-
-use super::{AttributeValue, ContextualParsable, Parsable, ParserContext};
+use crate::parse::{
+    AttributeValue, EncodedInt32, EncodedUint32, Parsable, ParseError, Parser, ParserContext,
+};
 
 #[derive(Debug)]
 pub struct Color {
@@ -14,25 +14,24 @@ pub struct Color {
     pub blue: u8,
 }
 
-// impl StreamParser for Color {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_Color <= {} bytes", input.len());
-//         let (input, (red, green, blue)) = tuple((le_u8, le_u8, le_u8))(input)?;
-//         let result = Self { red, green, blue };
-//         log::debug!("parse_Color => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
+impl Parsable for Color {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let red = parser.next_u8()?;
+        let green = parser.next_u8()?;
+        let blue = parser.next_u8()?;
+        Ok(Self { red, green, blue })
+    }
+}
 
 pub struct ByteData {
-    pub length: u32,
+    pub length: EncodedUint32,
     pub data: Vec<u8>,
 }
 
 impl ByteData {
     pub fn from(data: &[u8]) -> Self {
         Self {
-            length: data.len() as u32,
+            length: EncodedUint32::from(data.len() as u32),
             data: Vec::from(data),
         }
     }
@@ -45,9 +44,9 @@ impl Debug for ByteData {
 }
 
 impl Parsable for ByteData {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let length = parser.next_encoded_u32()?;
-        let data = parser.next_bytes(length as usize)?;
+        let data = parser.next_bytes(length.to_usize())?;
         // let (input, data) = take(length)(input)?;
         assert_eq!(length, data.len() as u32);
         let result = Self {
@@ -58,27 +57,6 @@ impl Parsable for ByteData {
         Ok(result)
     }
 }
-
-// impl StreamParser for ByteData {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_ByteData <= {} bytes", input.len());
-//         let (input, length) = parse_encode_u32(input)?;
-//         assert!(
-//             length <= input.len() as u32,
-//             "EOF: expect={}, actual={}",
-//             length,
-//             input.len()
-//         );
-//         let (input, data) = take(length)(input)?;
-//         assert_eq!(length, data.len() as u32);
-//         let result = Self {
-//             length,
-//             data: Vec::from(data),
-//         };
-//         log::debug!("parse_ByteData => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, FromPrimitive, ParsableEnum)]
 #[repr(u8)]
@@ -148,19 +126,10 @@ pub enum MaskMode {
 pub struct Path {}
 
 impl Parsable for Path {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         Ok(Self {})
     }
 }
-
-// impl StreamParser for Path {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_Path <= {} bytes", input.len());
-//         let result = Self {};
-//         log::debug!("parse_Path => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
 
 #[derive(Debug)]
 pub struct Point {
@@ -185,25 +154,17 @@ impl Point {
 impl AttributeValue for Point {}
 
 impl Parsable for Point {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
-        parser.next_point()
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let x = parser.next_f32()?;
+        let y = parser.next_f32()?;
+        Ok(Self { x, y })
     }
 }
 
-// impl StreamParser for Point {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         // log::debug!("parse_Point <= {} bytes", input.len());
-//         let (input, (x, y)) = tuple((le_f32, le_f32))(input)?;
-//         let result = Self { x, y };
-//         log::debug!("parse_Point => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 #[derive(Debug)]
 pub struct Ratio {
-    pub numerator: i32,
-    pub denominator: u32,
+    pub numerator: EncodedInt32,
+    pub denominator: EncodedUint32,
 }
 
 impl Ratio {
@@ -213,8 +174,8 @@ impl Ratio {
 
     pub fn new(numerator: i32, denominator: u32) -> Self {
         Self {
-            numerator,
-            denominator,
+            numerator: EncodedInt32::from(numerator),
+            denominator: EncodedUint32::from(denominator),
         }
     }
 }
@@ -222,7 +183,7 @@ impl Ratio {
 impl AttributeValue for Ratio {}
 
 impl Parsable for Ratio {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let numerator = parser.next_encoded_i32()?;
         let denominator = parser.next_encoded_u32()?;
         let result = Self {
@@ -234,19 +195,6 @@ impl Parsable for Ratio {
     }
 }
 
-// impl StreamParser for Ratio {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_Ratio <= {} bytes", input.len());
-//         let (input, (numerator, denominator)) = tuple((parse_encode_i32, parse_encode_u32))(input)?;
-//         let result = Self {
-//             numerator,
-//             denominator,
-//         };
-//         log::debug!("parse_Ratio => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 #[derive(Debug)]
 pub struct AlphaStop {
     pub position: u16,
@@ -255,7 +203,7 @@ pub struct AlphaStop {
 }
 
 impl Parsable for AlphaStop {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let position = parser.next_u16()?;
         let midpoint = parser.next_u16()?;
         let opacity = parser.next_u8()?;
@@ -269,20 +217,6 @@ impl Parsable for AlphaStop {
     }
 }
 
-// impl StreamParser for AlphaStop {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parselphaStop <= {} bytes", input.len());
-//         let (input, (position, midpoint, opacity)) = tuple((le_u16, le_u16, le_u8))(input)?;
-//         let result = Self {
-//             position,
-//             midpoint,
-//             opacity,
-//         };
-//         log::debug!("parselphaStop => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 #[derive(Debug)]
 pub struct ColorStop {
     pub position: u16,
@@ -291,10 +225,10 @@ pub struct ColorStop {
 }
 
 impl Parsable for ColorStop {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let position = parser.next_u16()?;
         let midpoint = parser.next_u16()?;
-        let color = parser.next_color()?;
+        let color = parser.next()?;
         let result = Self {
             position,
             midpoint,
@@ -305,20 +239,6 @@ impl Parsable for ColorStop {
     }
 }
 
-// impl StreamParser for ColorStop {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_ColorStop <= {} bytes", input.len());
-//         let (input, (position, midpoint, color)) = tuple((le_u16, le_u16, Color::parse))(input)?;
-//         let result = Self {
-//             position,
-//             midpoint,
-//             color,
-//         };
-//         log::debug!("parse_ColorStop => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 #[derive(Debug)]
 pub struct GradientColor {
     pub alpha_count: u32,
@@ -328,19 +248,19 @@ pub struct GradientColor {
 }
 
 impl Parsable for GradientColor {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let alpha_count = parser.next_u32()?;
         let color_count = parser.next_u32()?;
 
         let mut alpha_stop_list = vec![];
         for _ in 0..alpha_count {
-            let stop = AlphaStop::parse(parser)?;
+            let stop = AlphaStop::parse(parser, ctx.clone())?;
             alpha_stop_list.push(stop);
         }
 
         let mut color_stop_list = vec![];
         for _ in 0..color_count {
-            let stop = ColorStop::parse(parser)?;
+            let stop = ColorStop::parse(parser, ctx.clone())?;
             color_stop_list.push(stop);
         }
 
@@ -354,36 +274,6 @@ impl Parsable for GradientColor {
         Ok(result)
     }
 }
-
-// impl StreamParser for GradientColor {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_GradientColor <= {} bytes", input.len());
-//         let (mut input, (alpha_count, color_count)) = tuple((le_u32, le_u32))(input)?;
-
-//         let mut alpha_stop_list = vec![];
-//         for _ in 0..alpha_count {
-//             let (next, stop) = AlphaStop::parse(input)?;
-//             input = next;
-//             alpha_stop_list.push(stop);
-//         }
-
-//         let mut color_stop_list = vec![];
-//         for _ in 0..color_count {
-//             let (next, stop) = ColorStop::parse(input)?;
-//             input = next;
-//             color_stop_list.push(stop);
-//         }
-
-//         let result = Self {
-//             alpha_count,
-//             color_count,
-//             alpha_stop_list,
-//             color_stop_list,
-//         };
-//         log::debug!("parse_GradientColor => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
 
 /// 混合模式
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, FromPrimitive, ParsableEnum)]
@@ -433,13 +323,13 @@ pub enum ParagraphJustification {
 #[derive(Debug)]
 pub struct SolidColor {
     pub solid_color: Color,
-    pub width: i32,
-    pub height: i32,
+    pub width: EncodedInt32,
+    pub height: EncodedInt32,
 }
 
-impl ContextualParsable for SolidColor {
-    fn parse_b(parser: &mut impl Parser, _ctx: impl ParserContext) -> Result<Self, ParseError> {
-        let solid_color = parser.next_color()?;
+impl Parsable for SolidColor {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+        let solid_color = parser.next()?;
         let width = parser.next_encoded_i32()?;
         let height = parser.next_encoded_i32()?;
         let result = Self {
@@ -451,18 +341,3 @@ impl ContextualParsable for SolidColor {
         Ok(result)
     }
 }
-
-// impl StreamParser for SolidColor {
-//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_SolidColor <= {} bytes", input.len());
-//         let (input, (solid_color, width, height)) =
-//             tuple((Color::parse, parse_encode_i32, parse_encode_i32))(input)?;
-//         let result = Self {
-//             solid_color,
-//             width,
-//             height,
-//         };
-//         log::debug!("parse_SolidColor => {:?}", result);
-//         Ok((input, result))
-//     }
-// }

@@ -1,20 +1,20 @@
-use crate::parser::{ParseError, Parser};
+use crate::parse::{EncodedInt32, EncodedUint32, Parsable, ParseError, Parser, ParserContext};
 
-use super::{ByteData, ContextualParsable, Parsable, ParserContext, TagBlock};
+use super::{ByteData, TagBlock};
 
 /// ImageTables 是图⽚信息的合集。
 #[derive(Debug)]
 pub struct ImageTables {
-    pub count: i32,
+    pub count: EncodedInt32,
     pub images: Vec<ImageBytes>,
 }
 
-impl ContextualParsable for ImageTables {
-    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+impl Parsable for ImageTables {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let count = parser.next_encoded_i32()?;
         let mut images = vec![];
-        for _ in 0..count {
-            let image = ImageBytes::parse(parser)?;
+        for _ in 0..count.to_i32() {
+            let image = ImageBytes::parse(parser, ctx.clone())?;
             images.push(image);
         }
         let result = Self { count, images };
@@ -22,22 +22,6 @@ impl ContextualParsable for ImageTables {
         Ok(result)
     }
 }
-
-// impl StreamParser for ImageTables {
-//     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-//         log::debug!("parse_ImageTables <= {} bytes", input.len());
-//         let (mut input, count) = parse_encode_i32(input)?;
-//         let mut images = vec![];
-//         for _ in 0..count {
-//             let (next, image) = ImageBytes::parse(input)?;
-//             input = next;
-//             images.push(image);
-//         }
-//         let result = Self { count, images };
-//         log::debug!("parse_ImageTables => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
 
 /// BitmapCompositionBlock 位图序列帧标签。
 #[derive(Debug)]
@@ -66,11 +50,11 @@ pub struct BitmapRect {}
 #[derive(Debug)]
 pub struct ImageReference {
     // pub inner: AttributeBlock,
-    pub id: u32,
+    pub id: EncodedUint32,
 }
 
-impl ContextualParsable for ImageReference {
-    fn parse_b(parser: &mut impl Parser, _ctx: impl ParserContext) -> Result<Self, ParseError> {
+impl Parsable for ImageReference {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let id = parser.next_id()?;
         let result = Self { id };
         log::debug!("parse_ImageReference => {:?}", result);
@@ -78,61 +62,35 @@ impl ContextualParsable for ImageReference {
     }
 }
 
-// impl StreamParser for ImageReference {
-//     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-//         log::debug!("parse_ImageReference <= {} bytes", input.len());
-//         let (input, id) = parse_encode_u32(input)?;
-//         let result = Self { id };
-//         log::debug!("parse_ImageReference => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 /// ImageBytes 图⽚标签，存储了压缩后的图⽚相关属性信息。
 #[derive(Debug)]
 pub struct ImageBytes {
-    pub id: u32,
+    pub id: EncodedUint32,
     pub file_bytes: ByteData,
 }
 
 impl Parsable for ImageBytes {
-    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
-        let file_bytes = ByteData::parse(parser)?;
+        let file_bytes = ByteData::parse(parser, ctx)?;
         let result = Self { id, file_bytes };
         log::debug!("parse_ImageBytes => {:?}", result);
         Ok(result)
     }
 }
 
-impl ContextualParsable for ImageBytes {
-    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
-        Self::parse(parser)
-    }
-}
-
-// impl StreamParser for ImageBytes {
-//     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-//         log::debug!("parse_ImageBytes <= {} bytes", input.len());
-//         let (input, (id, file_bytes)) = tuple((parse_encode_u32, ByteData::parse))(input)?;
-//         let result = Self { id, file_bytes };
-//         log::debug!("parse_ImageBytes => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 /// ImageBytes2 图⽚标签版本 2，除了存储 ImageBytes 的信息外，还允许记录图⽚的缩放参数，通常根据实际最⼤⽤到的⼤⼩来存储图⽚，⽽不是按原始⼤⼩。
 #[derive(Debug)]
 pub struct ImageBytes2 {
-    pub id: u32,
+    pub id: EncodedUint32,
     pub file_bytes: ByteData,
     pub scale_factor: f32,
 }
 
-impl ContextualParsable for ImageBytes2 {
-    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+impl Parsable for ImageBytes2 {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
-        let file_bytes = ByteData::parse(parser)?;
+        let file_bytes = ByteData::parse(parser, ctx)?;
         let scale_factor = parser.next_f32()?;
         let result = Self {
             id,
@@ -144,37 +102,22 @@ impl ContextualParsable for ImageBytes2 {
     }
 }
 
-// impl StreamParser for ImageBytes2 {
-//     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-//         log::debug!("parse_ImageBytes2 <= {} bytes", input.len());
-//         let (input, (id, file_bytes, scale_factor)) =
-//             tuple((parse_encode_u32, ByteData::parse, le_f32))(input)?;
-//         let result = Self {
-//             id,
-//             file_bytes,
-//             scale_factor,
-//         };
-//         log::debug!("parse_ImageBytes2 => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
-
 /// ImageBytes3 图⽚标签版本 3， 除了包含 ImageBytes2 的信息外，还允许记录剔除透明边框后的图⽚。
 #[derive(Debug)]
 pub struct ImageBytes3 {
-    pub id: u32,
+    pub id: EncodedUint32,
     pub file_bytes: ByteData,
     pub scale_factor: f32,
-    pub width: i32,
-    pub height: i32,
-    pub anchor_x: i32,
-    pub anchor_y: i32,
+    pub width: EncodedInt32,
+    pub height: EncodedInt32,
+    pub anchor_x: EncodedInt32,
+    pub anchor_y: EncodedInt32,
 }
 
-impl ContextualParsable for ImageBytes3 {
-    fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+impl Parsable for ImageBytes3 {
+    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
-        let file_bytes = ByteData::parse(parser)?;
+        let file_bytes = ByteData::parse(parser, ctx)?;
         let scale_factor = parser.next_f32()?;
         let width = parser.next_encoded_i32()?;
         let height = parser.next_encoded_i32()?;
@@ -193,30 +136,3 @@ impl ContextualParsable for ImageBytes3 {
         Ok(result)
     }
 }
-
-// impl StreamParser for ImageBytes3 {
-//     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-//         log::debug!("parse_ImageBytes3 <= {} bytes", input.len());
-//         let (input, (id, file_bytes, scale_factor, width, height, anchor_x, anchor_y)) =
-//             tuple((
-//                 parse_encode_u32,
-//                 ByteData::parse,
-//                 le_f32,
-//                 parse_encode_i32,
-//                 parse_encode_i32,
-//                 parse_encode_i32,
-//                 parse_encode_i32,
-//             ))(input)?;
-//         let result = Self {
-//             id,
-//             file_bytes,
-//             scale_factor,
-//             width,
-//             height,
-//             anchor_x,
-//             anchor_y,
-//         };
-//         log::debug!("parse_ImageBytes3 => {:?}", result);
-//         Ok((input, result))
-//     }
-// }
