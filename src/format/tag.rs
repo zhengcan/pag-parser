@@ -4,9 +4,9 @@ use num_enum::FromPrimitive;
 use num_enum::IntoPrimitive;
 
 use crate::parse::Parsable;
+use crate::parse::ParseContext;
 use crate::parse::ParseError;
 use crate::parse::Parser;
-use crate::parse::ParserContext;
 
 use super::image::*;
 use super::layer::*;
@@ -198,7 +198,7 @@ pub struct TagBlock {
 }
 
 impl Parsable for TagBlock {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut block = TagBlock { tags: vec![] };
         loop {
             let tag = Tag::parse(parser, ctx.clone())?;
@@ -233,7 +233,7 @@ impl Tag {
 }
 
 impl Parsable for Tag {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         log::debug!(
             "parse_Tag <= {} bytes: {:?}",
             parser.remain(),
@@ -288,7 +288,7 @@ impl Parsable for Tag {
             //     TagBody::DropShadowStyle(DropShadowStyle::parse(body, ctx)?)
             // }
             // TagCode::CachePolicy => TagBody::CachePolicy(CachePolicy::parse(body, ctx)?),
-            // TagCode::FileAttributes => TagBody::FileAttributes(FileAttributes::parse(body, ctx)?),
+            TagCode::FileAttributes => TagBody::FileAttributes(FileAttributes::parse(body, ctx)?),
             // TagCode::TimeStretchMode => {
             //     TagBody::TimeStretchMode(TimeStretchMode::parse(body, ctx)?)
             // }
@@ -304,9 +304,9 @@ impl Parsable for Tag {
                 TagBody::VideoCompositionBlock(VideoCompositionBlock::parse(body, ctx)?)
             }
             TagCode::VideoSequence => TagBody::VideoSequence(VideoSequence::parse(body, ctx)?),
-            // TagCode::LayerAttributesV2 => {
-            //     TagBody::LayerAttributesV2(LayerAttributesV2::parse_block(body, ctx)?)
-            // }
+            TagCode::LayerAttributesV2 => {
+                TagBody::LayerAttributesV2(LayerAttributes::parse(body, ctx)?)
+            }
             // TagCode::MarkerList => TagBody::MarkerList(MarkerList::parse_block(body, ctx)?),
             // TagCode::ImageFillRule => TagBody::ImageFillRule(ImageFillRule::parse_block(body, ctx)?),
             // TagCode::AudioBytes => TagBody::AudioBytes(AudioBytes::parse_block(body, ctx)?),
@@ -322,12 +322,12 @@ impl Parsable for Tag {
             // TagCode::BulgeEffect => TagBody::BulgeEffect(BulgeEffect::parse_block(body, ctx)?),
             // TagCode::FastBlurEffect => TagBody::FastBlurEffect(FastBlurEffect::parse_block(body, ctx)?),
             // TagCode::GlowEffect => TagBody::GlowEffect(GlowEffect::parse_block(body, ctx)?),
-            // TagCode::LayerAttributesV3 => {
-            //     TagBody::LayerAttributesV3(LayerAttributesV3::parse_block(body, ctx)?)
-            // }
-            // TagCode::LayerAttributesExtra => {
-            //     TagBody::LayerAttributesExtra(LayerAttributesExtra::parse_block(body, ctx)?)
-            // }
+            TagCode::LayerAttributesV3 => {
+                TagBody::LayerAttributesV3(LayerAttributes::parse(body, ctx)?)
+            }
+            TagCode::LayerAttributesExtra => {
+                TagBody::LayerAttributesExtra(LayerAttributesExtra::parse(body, ctx)?)
+            }
             // TagCode::TextSourceV2 => TagBody::TextSourceV2(TextSourceV2::parse_block(body, ctx)?),
             // TagCode::DropShadowStyleV2 => {
             //     TagBody::DropShadowStyleV2(DropShadowStyleV2::parse_block(body, ctx)?)
@@ -421,19 +421,13 @@ pub struct TagHeader {
 }
 
 impl Parsable for TagHeader {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         const MASK: u32 = 0b0011_1111;
-        // log::debug!("parse_TagHeader <= {}", input.len(),);
 
         let code_and_length = parser.next_u16()?;
-
-        // let (mut input, code_and_length) = le_u16(input)?;
         let code = (code_and_length >> 6) as u8;
         let mut length = code_and_length as u32 & MASK;
         if length == MASK {
-            // let (next, length_new) = le_u32(input)?;
-            // input = next;
-            // length = length_new;
             length = parser.next_u32()?;
         }
         let result = Self {
@@ -512,6 +506,8 @@ pub enum TagBody {
     BitmapCompositionBlock(BitmapCompositionBlock),
     /// 位图序列
     BitmapSequence(BitmapSequence),
+    /// 文件属性
+    FileAttributes(FileAttributes),
     /// 图片字节流
     ImageBytes(ImageBytes),
     /// 图片字节流（带缩放）
@@ -522,6 +518,12 @@ pub enum TagBody {
     VideoCompositionBlock(VideoCompositionBlock),
     /// 视频序列
     VideoSequence(VideoSequence),
+    /// 图层基本属性信息 V2
+    LayerAttributesV2(LayerAttributes),
+    /// 图层基本属性信息 V3
+    LayerAttributesV3(LayerAttributes),
+    /// 图层基本属性信息（额外）
+    LayerAttributesExtra(LayerAttributesExtra),
     /// 未知
     Raw(ByteData),
 }

@@ -1,9 +1,23 @@
-use super::parser::SliceParser;
+use std::{cmp::min, fmt::Debug, num::NonZeroUsize};
 
-#[derive(Debug, Clone)]
+use super::{parser::SliceParser, ParseError};
+
+#[derive(Clone)]
 pub struct Bits<'a> {
     buffer: &'a [u8],
     index: usize,
+}
+
+impl<'a> Debug for Bits<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let head = &self.buffer[0..min(16, self.buffer.len())];
+        let current = &self.buffer[self.index..min(self.index + 16, self.buffer.len())];
+        f.debug_struct("Bits")
+            .field("head", &head)
+            .field("index", &self.index)
+            .field("current", &current)
+            .finish()
+    }
 }
 
 impl<'a> Bits<'a> {
@@ -27,11 +41,17 @@ impl<'a> Bits<'a> {
         }
     }
 
-    pub fn finish<'b>(self) -> SliceParser<'b>
+    pub fn finish<'b>(self) -> Result<SliceParser<'b>, ParseError>
     where
         'a: 'b,
     {
-        let buffer = &self.buffer[(self.index + 7) / 8..];
-        SliceParser::new(buffer)
+        let offset = (self.index + 7) / 8;
+        if offset > self.buffer.len() {
+            return Err(ParseError::Incomplete(nom::Needed::Size(
+                NonZeroUsize::new(offset - self.buffer.len()).unwrap(),
+            )));
+        }
+        let buffer = &self.buffer[offset..];
+        Ok(SliceParser::new(buffer))
     }
 }

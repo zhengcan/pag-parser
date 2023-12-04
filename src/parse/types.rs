@@ -1,9 +1,9 @@
-use std::ops::Deref;
 use std::fmt;
+use std::ops::Deref;
 
 use concat_idents::concat_idents;
 
-use super::{AttributeValue, Parsable, ParseError, Parser, ParserContext};
+use super::{AttributeValue, Parsable, ParseContext, ParseError, Parser};
 
 macro_rules! define_encoded_num {
     ($t:ident, $r:ident) => {
@@ -75,7 +75,7 @@ macro_rules! define_encoded_num {
         impl Parsable for $t {
             fn parse(
                 parser: &mut impl Parser,
-                ctx: impl ParserContext,
+                _ctx: impl ParseContext,
             ) -> Result<Self, ParseError> {
                 concat_idents!(fn_name = next_encoded_, $r {
                     parser.fn_name()

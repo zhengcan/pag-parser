@@ -1,5 +1,5 @@
 use crate::parse::{
-    EncodedInt32, EncodedUint32, EncodedUint64, Parsable, ParseError, Parser, ParserContext,
+    EncodedInt32, EncodedUint32, EncodedUint64, Parsable, ParseContext, ParseError, Parser,
 };
 
 use super::{
@@ -15,7 +15,7 @@ pub struct VectorCompositionBlock {
 }
 
 impl Parsable for VectorCompositionBlock {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_id()?;
         let tag_block = TagBlock::parse(parser, ctx)?;
         let result = Self { id, tag_block };
@@ -35,7 +35,7 @@ pub struct CompositionAttributes {
 }
 
 impl Parsable for CompositionAttributes {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let width = parser.next_encoded_i32()?;
         let height = parser.next_encoded_i32()?;
         let duration = parser.next_encoded_u64()?;

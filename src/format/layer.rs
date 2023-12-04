@@ -1,6 +1,6 @@
 use crate::parse::{
-    AttributeConfig, AttributeType, EncodedUint32, EncodedUint64, Parsable, ParseError, Parser,
-    ParserContext, Time,
+    AttributeConfig, AttributeType, EncodedUint32, EncodedUint64, Parsable, ParseContext,
+    ParseError, Parser, Time,
 };
 
 use super::{
@@ -17,7 +17,7 @@ pub struct LayerBlock {
 }
 
 impl Parsable for LayerBlock {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let r#type = parser.next_enum()?;
         let id = parser.next_id()?;
         let tag_block = TagBlock::parse(parser, ctx.with_layer_type(r#type))?;
@@ -48,7 +48,7 @@ pub struct LayerAttributes {
 }
 
 impl Parsable for LayerAttributes {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut block = parser.new_attribute_block();
         let is_active = block.flag(AttributeConfig::BitFlag(true));
         let auto_orientation = block.flag(AttributeConfig::BitFlag(false));
@@ -110,6 +110,34 @@ impl Parsable for LayerAttributes {
     }
 }
 
+#[derive(Debug)]
+pub struct LayerAttributesExtra {
+    pub name: String,
+    pub motion_blur: bool,
+}
+
+impl Parsable for LayerAttributesExtra {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
+        let mut block = parser.new_attribute_block();
+        let name = block.flag(AttributeConfig::Value("".to_string()));
+        // !Camera => motionBlur
+        let motion_blur = match ctx.layer_type() {
+            Some(LayerType::Camera) => block.flag(AttributeType::NotExisted),
+            Some(_) => block.flag(AttributeConfig::BitFlag(false)),
+            _ => block.flag(AttributeType::NotExisted),
+        };
+
+        let result = Self {
+            name: block.read(name).unwrap_or_default(),
+            motion_blur: block.read(motion_blur).unwrap_or(false),
+        };
+
+        // let input = block.finish();
+        log::debug!("parse_LayerAttributesExtra => {:?}", result);
+        Ok(result)
+    }
+}
+
 /// CompositionReference 图层组合索引标签，存储的是⼀个图层组合的唯⼀ ID，通过 ID 索引真正的图层组合。
 #[derive(Debug)]
 pub struct CompositionReference {
@@ -118,7 +146,7 @@ pub struct CompositionReference {
 }
 
 impl Parsable for CompositionReference {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
         let composition_start_time = parser.next_time()?;
         let result = Self {
@@ -143,7 +171,7 @@ pub struct Transform2D {
 }
 
 impl Parsable for Transform2D {
-    fn parse(parser: &mut impl Parser, _ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut block = parser.new_attribute_block();
         let anchor_point = block.flag(AttributeType::SpatialProperty);
         let position = block.flag(AttributeType::SpatialProperty);
@@ -181,7 +209,7 @@ pub struct Mask {
 }
 
 impl Parsable for Mask {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_id()?;
         let inverted = parser.next_bool()?;
         let mask_mode = parser.next_enum()?;

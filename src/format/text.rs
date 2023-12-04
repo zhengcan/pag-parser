@@ -1,5 +1,5 @@
 use crate::parse::{
-    AttributeConfig, AttributeValue, EncodedUint32, Parsable, ParseError, Parser, ParserContext,
+    AttributeConfig, AttributeValue, EncodedUint32, Parsable, ParseContext, ParseError, Parser,
 };
 
 use super::{Color, ParagraphJustification, Point};
@@ -12,7 +12,7 @@ pub struct FontTables {
 }
 
 impl Parsable for FontTables {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let count = parser.next_encoded_u32()?;
         let mut font_datas = vec![];
         for _ in 0..count.to_u32() {
@@ -33,7 +33,7 @@ pub struct FontData {
 }
 
 impl Parsable for FontData {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let font_family = parser.next_string()?;
         let font_style = parser.next_string()?;
         let result = Self {
@@ -91,9 +91,8 @@ impl TextDocument {
 impl AttributeValue for TextDocument {}
 
 impl Parsable for TextDocument {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut bits = parser.new_bits();
-        // log::debug!("bits = {:?}", bits);
 
         let apply_fill_flag = bits.next();
         let apply_stroke_flag = bits.next();
@@ -114,7 +113,7 @@ impl Parsable for TextDocument {
         let leading_flag = bits.next();
         let tracking_flag = bits.next();
         let has_font_data_flag = bits.next();
-        let parser = &mut bits.finish();
+        let parser = &mut bits.finish()?;
 
         let mut result = Self {
             apply_fill_flag,
@@ -197,7 +196,7 @@ pub struct TextPathOption {
 }
 
 impl Parsable for TextPathOption {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut block = parser.new_attribute_block();
         let path = block.flag(AttributeConfig::Value(0)); // EncodedUint32
         let reversed_path = block.flag(AttributeConfig::DiscreteProperty(false));
@@ -229,7 +228,7 @@ pub struct TextMoreOption {
 }
 
 impl Parsable for TextMoreOption {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut block = parser.new_attribute_block();
         let anchor_point_grouping =
             block.flag(AttributeConfig::Value(ParagraphJustification::LeftJustify));
@@ -256,12 +255,12 @@ pub struct TextSource {
 }
 
 impl Parsable for TextSource {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let mut block = parser.new_attribute_block();
         let source_text = block.flag(AttributeConfig::DiscreteProperty(TextDocument::new())); // ??
 
         let result = Self {
-            source_text: block.read(source_text).unwrap_or(TextDocument::new()), // ??
+            source_text: block.read(source_text).unwrap_or_default(), // ??
         };
 
         log::debug!("parse_TextSource => {:?}", result);

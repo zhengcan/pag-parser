@@ -71,11 +71,11 @@ pub trait AttributeValue
 where
     Self: Sized,
 {
-    fn try_from_bool(value: bool) -> Option<Self> {
+    fn try_from_bool(_value: bool) -> Option<Self> {
         None
     }
 
-    fn try_from_key_frames(key_frames: Vec<String>) -> Option<Self> {
+    fn try_from_key_frames(_key_frames: Vec<String>) -> Option<Self> {
         None
     }
 }
@@ -159,7 +159,7 @@ impl<'a> AttributeBlock<'a> {
         }
 
         flag.has_spatial = bits.next();
-        return flag;
+        flag
     }
 
     pub fn read<T>(
@@ -170,7 +170,15 @@ impl<'a> AttributeBlock<'a> {
         T: Parsable + AttributeValue,
     {
         if let AttributeBlockState::Flag(bits) = &self.state {
-            self.state = AttributeBlockState::Content(bits.clone().finish());
+            match bits.clone().finish() {
+                Ok(parser) => {
+                    self.state = AttributeBlockState::Content(parser);
+                }
+                Err(e) => {
+                    log::error!("Error: {:?}", e);
+                    return None;
+                }
+            }
         }
         let parser = match &mut self.state {
             AttributeBlockState::Content(parser) => parser,

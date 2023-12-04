@@ -10,7 +10,7 @@ pub fn derive_parsable_enum(input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         impl crate::parse::Parsable for #name {
             #[inline(always)]
-            fn parse(parser: &mut impl crate::parse::Parser, _ctx: impl crate::parse::ParserContext) -> Result<Self, crate::parse::ParseError> {
+            fn parse(parser: &mut impl crate::parse::Parser, _ctx: impl crate::parse::ParseContext) -> Result<Self, crate::parse::ParseError> {
                 parser.next_enum()
             }
         }

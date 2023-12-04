@@ -4,7 +4,7 @@ use macros::ParsableEnum;
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::parse::{
-    AttributeValue, EncodedInt32, EncodedUint32, Parsable, ParseError, Parser, ParserContext,
+    AttributeValue, EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser,
 };
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ pub struct Color {
 }
 
 impl Parsable for Color {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let red = parser.next_u8()?;
         let green = parser.next_u8()?;
         let blue = parser.next_u8()?;
@@ -44,10 +44,9 @@ impl Debug for ByteData {
 }
 
 impl Parsable for ByteData {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let length = parser.next_encoded_u32()?;
         let data = parser.next_bytes(length.to_usize())?;
-        // let (input, data) = take(length)(input)?;
         assert_eq!(length, data.len() as u32);
         let result = Self {
             length,
@@ -126,7 +125,7 @@ pub enum MaskMode {
 pub struct Path {}
 
 impl Parsable for Path {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         Ok(Self {})
     }
 }
@@ -154,7 +153,7 @@ impl Point {
 impl AttributeValue for Point {}
 
 impl Parsable for Point {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let x = parser.next_f32()?;
         let y = parser.next_f32()?;
         Ok(Self { x, y })
@@ -183,7 +182,7 @@ impl Ratio {
 impl AttributeValue for Ratio {}
 
 impl Parsable for Ratio {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let numerator = parser.next_encoded_i32()?;
         let denominator = parser.next_encoded_u32()?;
         let result = Self {
@@ -203,7 +202,7 @@ pub struct AlphaStop {
 }
 
 impl Parsable for AlphaStop {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let position = parser.next_u16()?;
         let midpoint = parser.next_u16()?;
         let opacity = parser.next_u8()?;
@@ -225,7 +224,7 @@ pub struct ColorStop {
 }
 
 impl Parsable for ColorStop {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let position = parser.next_u16()?;
         let midpoint = parser.next_u16()?;
         let color = parser.next()?;
@@ -248,7 +247,7 @@ pub struct GradientColor {
 }
 
 impl Parsable for GradientColor {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let alpha_count = parser.next_u32()?;
         let color_count = parser.next_u32()?;
 
@@ -328,7 +327,7 @@ pub struct SolidColor {
 }
 
 impl Parsable for SolidColor {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let solid_color = parser.next()?;
         let width = parser.next_encoded_i32()?;
         let height = parser.next_encoded_i32()?;

@@ -10,7 +10,7 @@ use super::{
     attr::AttributeBlock,
     bits::Bits,
     types::{EncodedInt32, EncodedInt64, EncodedUint32, EncodedUint64, Time},
-    ParseError, Parsable,
+    Parsable, ParseError,
 };
 
 pub trait Parser {
@@ -19,6 +19,11 @@ pub trait Parser {
     #[inline(always)]
     fn remain(&self) -> usize {
         self.buffer().len()
+    }
+
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.buffer().is_empty()
     }
 
     #[inline(always)]
@@ -32,16 +37,16 @@ pub trait Parser {
     fn new_slice(&mut self, length: usize) -> Result<impl Parser, ParseError>;
 
     #[inline(always)]
-    fn new_attribute_block<'a>(&'a self) -> AttributeBlock<'a> {
+    fn new_attribute_block(&self) -> AttributeBlock {
         AttributeBlock::new(self.buffer())
     }
 
     #[inline(always)]
-    fn new_bits<'a>(&'a mut self) -> Bits<'a> {
+    fn new_bits(&mut self) -> Bits {
         Bits::new(self.buffer())
     }
 
-    fn next_term<'b, 'c>(&'b mut self, tag: &'c str) -> Result<&'b [u8], ParseError>;
+    fn next_term<'b>(&'b mut self, tag: &str) -> Result<&'b [u8], ParseError>;
 
     fn next_u8(&mut self) -> Result<u8, ParseError>;
     fn next_i8(&mut self) -> Result<i8, ParseError>;
@@ -109,7 +114,7 @@ impl<'a> Parser for SliceParser<'a> {
         Ok(SliceParser { input: slice })
     }
 
-    fn next_term<'b, 'c>(&'b mut self, term: &'c str) -> Result<&'b [u8], ParseError> {
+    fn next_term<'b>(&'b mut self, term: &str) -> Result<&'b [u8], ParseError> {
         let (input, term) = tag(term)(self.input)?;
         self.input = input;
         Ok(term)

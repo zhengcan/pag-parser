@@ -7,7 +7,7 @@ mod parser;
 mod types;
 
 pub use attr::{AttributeConfig, AttributeType, AttributeValue};
-pub use context::ParserContext;
+pub use context::ParseContext;
 pub use error::ParseError;
 pub use parsable::Parsable;
 pub use parser::{Parser, SliceParser};

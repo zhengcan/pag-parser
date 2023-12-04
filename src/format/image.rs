@@ -1,4 +1,4 @@
-use crate::parse::{EncodedInt32, EncodedUint32, Parsable, ParseError, Parser, ParserContext};
+use crate::parse::{EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser};
 
 use super::{ByteData, TagBlock};
 
@@ -10,7 +10,7 @@ pub struct ImageTables {
 }
 
 impl Parsable for ImageTables {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let count = parser.next_encoded_i32()?;
         let mut images = vec![];
         for _ in 0..count.to_i32() {
@@ -49,12 +49,11 @@ pub struct BitmapRect {}
 /// ImageReference 图⽚引⽤标签，存储的是⼀个图⽚的唯⼀ ID，通过 ID 索引真正的图⽚信息。
 #[derive(Debug)]
 pub struct ImageReference {
-    // pub inner: AttributeBlock,
     pub id: EncodedUint32,
 }
 
 impl Parsable for ImageReference {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_id()?;
         let result = Self { id };
         log::debug!("parse_ImageReference => {:?}", result);
@@ -70,7 +69,7 @@ pub struct ImageBytes {
 }
 
 impl Parsable for ImageBytes {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
         let file_bytes = ByteData::parse(parser, ctx)?;
         let result = Self { id, file_bytes };
@@ -88,7 +87,7 @@ pub struct ImageBytes2 {
 }
 
 impl Parsable for ImageBytes2 {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
         let file_bytes = ByteData::parse(parser, ctx)?;
         let scale_factor = parser.next_f32()?;
@@ -115,7 +114,7 @@ pub struct ImageBytes3 {
 }
 
 impl Parsable for ImageBytes3 {
-    fn parse(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
         let file_bytes = ByteData::parse(parser, ctx)?;
         let scale_factor = parser.next_f32()?;
