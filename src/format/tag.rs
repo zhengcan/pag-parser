@@ -7,6 +7,8 @@ use crate::parse::Parsable;
 use crate::parse::ParseContext;
 use crate::parse::ParseError;
 use crate::parse::Parser;
+use crate::visit::LayerInfo;
+use crate::visit::Traversable;
 
 use super::image::*;
 use super::layer::*;
@@ -192,9 +194,22 @@ pub enum TagCode {
     Unknown(u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TagBlock {
     pub tags: Vec<Tag>,
+}
+
+impl TagBlock {
+    pub fn push(&mut self, tag: Tag) {
+        self.tags.push(tag);
+    }
+
+    pub fn find<P>(&self, predicate: P) -> Option<&Tag>
+    where
+        P: FnMut(&&Tag) -> bool,
+    {
+        self.tags.iter().find(predicate)
+    }
 }
 
 impl Parsable for TagBlock {
@@ -208,6 +223,17 @@ impl Parsable for TagBlock {
                 }
                 _ => block.tags.push(tag),
             }
+        }
+    }
+}
+
+impl Traversable for TagBlock {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo) + Clone,
+    {
+        for tag in &self.tags {
+            tag.traverse_layer(visitor.clone());
         }
     }
 }
@@ -408,6 +434,30 @@ impl Parsable for Tag {
             _ => TagBody::Raw(ByteData::from(body.buffer())),
         };
         Ok(Self { header, body })
+    }
+}
+
+impl Traversable for Tag {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo) + Clone,
+    {
+        if let TagBody::LayerBlock(block) = &self.body {
+            // log::info!("LayerBlock");
+            block.traverse_layer(visitor);
+        } else if let TagBody::VectorCompositionBlock(block) = &self.body {
+            // log::info!("VectorCompositionBlock");
+            block.traverse_layer(visitor);
+        } else if let TagBody::VideoCompositionBlock(block) = &self.body {
+            // log::info!("VideoCompositionBlock");
+            block.traverse_layer(visitor);
+        } else if let TagBody::BitmapCompositionBlock(block) = &self.body {
+            // log::info!("BitmapCompositionBlock");
+            block.traverse_layer(visitor);
+        } else if let TagBody::ShapeGroup(block) = &self.body {
+            // log::info!("ShapeGroup");
+            block.traverse_layer(visitor);
+        }
     }
 }
 

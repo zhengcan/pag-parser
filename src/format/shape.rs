@@ -1,5 +1,8 @@
-use crate::parse::{
-    EncodedInt32, EncodedUint32, EncodedUint64, Parsable, ParseContext, ParseError, Parser,
+use crate::{
+    parse::{
+        EncodedInt32, EncodedUint32, EncodedUint64, Parsable, ParseContext, ParseError, Parser,
+    },
+    visit::{LayerInfo, Traversable},
 };
 
 use super::{
@@ -21,6 +24,15 @@ impl Parsable for VectorCompositionBlock {
         let result = Self { id, tag_block };
         log::debug!("parse_VectorCompositionBlock => {:?}", result);
         Ok(result)
+    }
+}
+
+impl Traversable for VectorCompositionBlock {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo) + Clone,
+    {
+        self.tag_block.traverse_layer(visitor)
     }
 }
 
@@ -67,6 +79,15 @@ pub struct ShapeGroup {
     pub rotation: f32,
     pub opacity: u8,
     pub tag_block: TagBlock,
+}
+
+impl Traversable for ShapeGroup {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo),
+    {
+        // self.tag_block.traverse_layer(visitor)
+    }
 }
 
 /// 矩形标签。

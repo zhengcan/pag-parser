@@ -1,4 +1,7 @@
-use crate::parse::{EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser};
+use crate::{
+    parse::{EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser},
+    visit::{LayerInfo, Traversable},
+};
 
 use super::{ByteData, TagBlock};
 
@@ -29,6 +32,15 @@ pub struct BitmapCompositionBlock {
     // pub inner: AttributeBlock,
     pub id: u32,
     pub tag_block: TagBlock,
+}
+
+impl Traversable for BitmapCompositionBlock {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo),
+    {
+        // self.tag_block.traverse_layer(visitor)
+    }
 }
 
 /// BitmapSequence 标签。

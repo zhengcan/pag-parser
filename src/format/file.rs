@@ -1,4 +1,59 @@
-use crate::parse::{EncodedInt64, Parsable, ParseContext, ParseError, Parser};
+use crate::{
+    parse::{EncodedInt64, Parsable, ParseContext, ParseError, Parser},
+    visit::{LayerInfo, Traversable},
+    Tag, TagBlock,
+};
+
+/// Pag 文件格式
+#[derive(Debug)]
+pub struct Pag {
+    pub header: FileHeader,
+    pub tag_block: TagBlock,
+}
+
+impl Pag {
+    pub fn new(header: FileHeader) -> Self {
+        Self {
+            header,
+            tag_block: TagBlock::default(),
+        }
+    }
+
+    pub fn push_tag(&mut self, tag: Tag) {
+        self.tag_block.push(tag);
+    }
+}
+
+impl Traversable for Pag {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo) + Clone,
+    {
+        self.tag_block.traverse_layer(visitor);
+    }
+}
+
+/// Pag 文件头
+#[derive(Debug, Clone)]
+pub struct FileHeader {
+    pub version: u8,
+    pub length: u32,
+    pub compress_method: i8,
+}
+
+impl Parsable for FileHeader {
+    fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
+        let _ = parser.next_term("PAG")?;
+        let version = parser.next_u8()?;
+        let length = parser.next_u32()?;
+        let compress_method = parser.next_i8()?;
+        Ok(Self {
+            version,
+            length,
+            compress_method,
+        })
+    }
+}
 
 #[derive(Debug)]
 pub struct FileAttributes {

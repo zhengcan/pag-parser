@@ -1,6 +1,10 @@
-use crate::parse::{
-    AttributeConfig, AttributeType, EncodedUint32, EncodedUint64, Parsable, ParseContext,
-    ParseError, Parser, Time,
+use crate::{
+    parse::{
+        AttributeConfig, AttributeType, EncodedUint32, EncodedUint64, Parsable, ParseContext,
+        ParseError, Parser, Time,
+    },
+    visit::{LayerInfo, Traversable},
+    TagBody,
 };
 
 use super::{
@@ -28,6 +32,37 @@ impl Parsable for LayerBlock {
         };
         log::debug!("parse_LayerBlock => {:?}", result);
         Ok(result)
+    }
+}
+
+impl LayerInfo for LayerBlock {
+    fn get_name(&self) -> Option<&str> {
+        let attribute = self.tag_block.tags.iter().find_map(|tag| match &tag.body {
+            TagBody::LayerAttributes(attributes) => Some(attributes),
+            TagBody::LayerAttributesV2(attributes) => Some(attributes),
+            TagBody::LayerAttributesV3(attributes) => Some(attributes),
+            _ => None,
+        });
+        attribute.map(|attr| attr.name.as_str())
+    }
+
+    fn get_layer_type(&self) -> LayerType {
+        self.r#type
+    }
+}
+
+impl Traversable for LayerBlock {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo),
+    {
+        // let attribute = self.tag_block.tags.iter().find_map(|tag| match &tag.body {
+        //     TagBody::LayerAttributes(attributes) => Some(attributes),
+        //     TagBody::LayerAttributesV2(attributes) => Some(attributes),
+        //     TagBody::LayerAttributesV3(attributes) => Some(attributes),
+        //     _ => None,
+        // });
+        visitor(self)
     }
 }
 

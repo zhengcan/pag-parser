@@ -1,4 +1,7 @@
-use crate::parse::{EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser, Time};
+use crate::{
+    parse::{EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser, Time},
+    visit::{LayerInfo, Traversable},
+};
 
 use super::{ByteData, TagBlock};
 
@@ -22,6 +25,15 @@ impl Parsable for VideoCompositionBlock {
         };
         log::debug!("parse_VideoCompositionBlock => {:?}", result);
         Ok(result)
+    }
+}
+
+impl Traversable for VideoCompositionBlock {
+    fn traverse_layer<F>(&self, visitor: F)
+    where
+        F: Fn(&dyn LayerInfo) + Clone,
+    {
+        self.tag_block.traverse_layer(visitor)
     }
 }
 
