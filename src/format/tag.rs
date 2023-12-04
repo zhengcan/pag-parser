@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::fmt::Debug;
 
 use nom::IResult;
@@ -194,31 +193,31 @@ pub struct TagBlock {
     pub tags: Vec<Tag>,
 }
 
-impl StreamParser for TagBlock {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        Self::parse_with(input, ())
-    }
+// impl StreamParser for TagBlock {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         Self::parse_with(input, ())
+//     }
 
-    fn parse_with(input: &[u8], ctx: impl ParserContext) -> IResult<&[u8], Self> {
-        log::debug!("parse_TagBlock <= {} bytes", input.len());
-        let mut tags = vec![];
-        let mut input = input;
-        // loop {
-        //     let (next, tag) = Tag::parse_with(input, ctx.clone())?;
-        //     input = next;
-        //     match tag.header.code {
-        //         TagCode::Unknown(_) => log::warn!("tag = {:?}", tag.header),
-        //         _ => log::info!("tag = {:?}", tag.header),
-        //     };
-        //     let code = tag.header.code;
-        //     tags.push(tag);
-        //     if code == TagCode::End {
-        //         break;
-        //     }
-        // }
-        Ok((input, TagBlock { tags }))
-    }
-}
+//     fn parse_with(input: &[u8], ctx: impl ParserContext) -> IResult<&[u8], Self> {
+//         log::debug!("parse_TagBlock <= {} bytes", input.len());
+//         let mut tags = vec![];
+//         let mut input = input;
+//         // loop {
+//         //     let (next, tag) = Tag::parse_with(input, ctx.clone())?;
+//         //     input = next;
+//         //     match tag.header.code {
+//         //         TagCode::Unknown(_) => log::warn!("tag = {:?}", tag.header),
+//         //         _ => log::info!("tag = {:?}", tag.header),
+//         //     };
+//         //     let code = tag.header.code;
+//         //     tags.push(tag);
+//         //     if code == TagCode::End {
+//         //         break;
+//         //     }
+//         // }
+//         Ok((input, TagBlock { tags }))
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Tag {
@@ -248,7 +247,7 @@ impl ContextualParsable for Tag {
             parser.peek(16)
         );
 
-        let header = TagHeader::parse_a(parser)?;
+        let header = TagHeader::parse(parser)?;
         let ctx = ctx.with_tag_code(header.code);
         let body_parser = &mut parser.new_slice(header.length as usize)?;
         let body = body_parser.buffer();
@@ -438,7 +437,7 @@ pub struct TagHeader {
 }
 
 impl Parsable for TagHeader {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         const MASK: u32 = 0b0011_1111;
         // log::debug!("parse_TagHeader <= {}", input.len(),);
 

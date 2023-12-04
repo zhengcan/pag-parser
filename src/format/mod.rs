@@ -123,57 +123,51 @@ impl ParserContext for bool {
     }
 }
 
-pub trait WithAttributeBlock {}
-
-pub trait WithTagBlock {
-    fn next_tag(&self) -> Result<Tag, ParseError>;
-}
-
 pub trait Parsable
 where
     Self: Sized,
 {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError>;
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError>;
 }
 
 impl Parsable for f32 {
     #[inline(always)]
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_f32()
     }
 }
 
 impl Parsable for u8 {
     #[inline(always)]
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_u8()
     }
 }
 
 impl Parsable for u32 {
     #[inline(always)]
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_encoded_u32()
     }
 }
 
 impl Parsable for u64 {
     #[inline(always)]
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_encoded_u64()
     }
 }
 
 impl Parsable for bool {
     #[inline(always)]
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_bool()
     }
 }
 
 impl Parsable for String {
     #[inline(always)]
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_string()
     }
 }
@@ -186,59 +180,52 @@ where
 }
 
 /// 从流中解析
-#[deprecated]
-pub trait StreamParser
-where
-    Self: Sized,
-{
-    fn parse(input: &[u8]) -> IResult<&[u8], Self>;
+// #[deprecated]
+// pub trait StreamParser
+// where
+//     Self: Sized,
+// {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self>;
 
-    fn parse_and<F>(input: &[u8], f: F) -> IResult<&[u8], Self>
-    where
-        F: Fn(&mut Self),
-    {
-        Self::parse(input)
-    }
+//     fn parsend<F>(input: &[u8], f: F) -> IResult<&[u8], Self>
+//     where
+//         F: Fn(&mut Self),
+//     {
+//         Self::parse(input)
+//     }
 
-    fn parse_with(input: &[u8], ctx: impl ParserContext) -> IResult<&[u8], Self> {
-        Self::parse(input)
-    }
+//     fn parse_with(input: &[u8], ctx: impl ParserContext) -> IResult<&[u8], Self> {
+//         Self::parse(input)
+//     }
 
-    fn parse_block(input: &[u8]) -> Result<Self, nom::Err<nom::error::Error<&[u8]>>> {
-        Self::parse_block_with(input, ())
-    }
+//     fn parse_block(input: &[u8]) -> Result<Self, nom::Err<nom::error::Error<&[u8]>>> {
+//         Self::parse_block_with(input, ())
+//     }
 
-    fn parse_block_with(
-        input: &[u8],
-        ctx: impl ParserContext,
-    ) -> Result<Self, nom::Err<nom::error::Error<&[u8]>>> {
-        Self::parse_with(input, ctx).map(|(remain, v)| {
-            assert_eq!(remain.len(), 0);
-            v
-        })
-    }
+//     fn parse_block_with(
+//         input: &[u8],
+//         ctx: impl ParserContext,
+//     ) -> Result<Self, nom::Err<nom::error::Error<&[u8]>>> {
+//         Self::parse_with(input, ctx).map(|(remain, v)| {
+//             assert_eq!(remain.len(), 0);
+//             v
+//         })
+//     }
 
-    fn try_from_bool(value: bool) -> Option<Self> {
-        None
-    }
+//     fn try_from_bool(value: bool) -> Option<Self> {
+//         None
+//     }
 
-    fn try_from_key_frames(value: Vec<String>) -> Option<Self> {
-        None
-    }
-}
+//     fn try_from_key_frames(value: Vec<String>) -> Option<Self> {
+//         None
+//     }
+// }
 
 /// Pag 文件格式
 #[derive(Debug)]
 pub struct Pag {
     pub header: FileHeader,
     pub tag_block: TagBlock,
-}
-
-impl StreamParser for Pag {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        let (input, (header, tag_block)) = tuple((FileHeader::parse, TagBlock::parse))(input)?;
-        Ok((input, Self { header, tag_block }))
-    }
 }
 
 /// Pag 文件头
@@ -250,16 +237,30 @@ pub struct FileHeader {
     pub compress_method: i8,
 }
 
-impl StreamParser for FileHeader {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        let (input, (_, version, length, compress_method)) =
-            tuple((tag("PAG"), le_u8, le_u32, le_i8))(input)?;
-        let header = Self {
-            // magic: [b'P', b'A', b'G'],
+impl Parsable for FileHeader {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
+        let _ = parser.next_term("PAG")?;
+        let version = parser.next_u8()?;
+        let length = parser.next_u32()?;
+        let compress_method = parser.next_i8()?;
+        Ok(Self {
             version,
             length,
             compress_method,
-        };
-        Ok((input, header))
+        })
     }
 }
+
+// impl StreamParser for FileHeader {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         let (input, (_, version, length, compress_method)) =
+//             tuple((tag("PAG"), le_u8, le_u32, le_i8))(input)?;
+//         let header = Self {
+//             // magic: [b'P', b'A', b'G'],
+//             version,
+//             length,
+//             compress_method,
+//         };
+//         Ok((input, header))
+//     }
+// }

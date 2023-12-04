@@ -1,13 +1,13 @@
-use nom::{number::complete::le_f32, sequence::tuple, IResult};
+use nom::{sequence::tuple, IResult};
 
 use crate::{
-    format::primitive::{parse_encode_i32, parse_encode_u32, parse_encode_u64},
+    format::primitive::parse_encode_u32,
     parser::{ParseError, Parser},
 };
 
 use super::{
     BlendMode, Color, CompositeOrder, ContextualParsable, FillRule, GradientFillType, LineCap,
-    LineJoin, MergePathsMode, ParserContext, Path, Point, StreamParser, TagBlock, TrimPathsType,
+    LineJoin, MergePathsMode, ParserContext, Path, Point, TagBlock, TrimPathsType,
 };
 
 /// VectorCompositionBlock 是⽮量图形的合集。⾥⾯可以包含简单的⽮量图形，也可以再包含⼀个或是多个 VectorComposition。
@@ -27,15 +27,15 @@ impl ContextualParsable for VectorCompositionBlock {
     }
 }
 
-impl StreamParser for VectorCompositionBlock {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        log::debug!("parse_VectorCompositionBlock <= {} bytes", input.len());
-        let (input, (id, tag_block)) = tuple((parse_encode_u32, TagBlock::parse))(input)?;
-        let result = Self { id, tag_block };
-        log::debug!("parse_VectorCompositionBlock => {:?}", result);
-        Ok((input, result))
-    }
-}
+// impl StreamParser for VectorCompositionBlock {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         log::debug!("parse_VectorCompositionBlock <= {} bytes", input.len());
+//         let (input, (id, tag_block)) = tuple((parse_encode_u32, TagBlock::parse))(input)?;
+//         let result = Self { id, tag_block };
+//         log::debug!("parse_VectorCompositionBlock => {:?}", result);
+//         Ok((input, result))
+//     }
+// }
 
 /// CompositionAttribute 存储了 Composition 基本属性信息。⾥⾯可以包含简单的⽮量图形，也可以再包含⼀个或是多个 VectorComposition。
 #[derive(Debug)]

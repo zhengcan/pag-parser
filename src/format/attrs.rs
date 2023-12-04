@@ -1,6 +1,6 @@
-use crate::parser::{self, Parser, SliceParser};
+use crate::parser::SliceParser;
 
-use super::{Parsable, StreamParser};
+use super::Parsable;
 
 #[derive(Debug, Clone)]
 pub struct Bits<'a> {
@@ -256,7 +256,7 @@ impl<'a> AttributeBlock<'a> {
             AttributeType::BitFlag => T::try_from_bool(flag.exist),
             AttributeType::FixedValue | AttributeType::Value => {
                 if flag.exist {
-                    T::parse_a(parser).ok()
+                    T::parse(parser).ok()
                 } else {
                     None
                 }
@@ -267,7 +267,7 @@ impl<'a> AttributeBlock<'a> {
                         let key_frames = vec![];
                         T::try_from_key_frames(key_frames)
                     } else {
-                        T::parse_a(parser).ok()
+                        T::parse(parser).ok()
                     }
                 } else {
                     None
@@ -280,7 +280,7 @@ impl<'a> AttributeBlock<'a> {
     // where
     //     T: Parsable,
     // {
-    //     match T::parse_a(self.buffer) {
+    //     match T::parse(self.buffer) {
     //         Ok((input, value)) => {
     //             self.buffer = input;
     //             Some(value)

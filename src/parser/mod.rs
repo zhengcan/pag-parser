@@ -2,16 +2,15 @@ use std::cmp::min;
 use std::fmt::Debug;
 
 use nom::{
-    bytes::complete::take,
-    number::complete::{le_f32, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
-    Needed,
+    bytes::complete::{tag, take},
+    number::complete::{le_f32, le_i32, le_i64, le_i8, le_u16, le_u32, le_u64, le_u8},
 };
 use thiserror::Error;
 
 use crate::format::{
     parse_encode_i32, parse_encode_i64, parse_encode_u32, parse_encode_u64, parse_enum,
-    parse_string, AttributeBlock, Bits, ByteData, Color, ContextualParsable, FileHeader, Parsable,
-    ParserContext, Point, StreamParser, Tag, TagBlock, TagCode, Time,
+    parse_string, AttributeBlock, Bits, Color, ContextualParsable, FileHeader, Parsable,
+    ParserContext, Point, Tag, TagBlock, TagCode, Time,
 };
 
 #[derive(Debug, Error)]
@@ -66,7 +65,10 @@ pub trait Parser {
         Bits::new(self.buffer())
     }
 
+    fn next_term<'b, 'c>(&'b mut self, tag: &'c str) -> Result<&'b [u8], ParseError>;
+
     fn next_u8(&mut self) -> Result<u8, ParseError>;
+    fn next_i8(&mut self) -> Result<i8, ParseError>;
     fn next_u16(&mut self) -> Result<u16, ParseError>;
     fn next_u32(&mut self) -> Result<u32, ParseError>;
     fn next_i32(&mut self) -> Result<i32, ParseError>;
@@ -117,7 +119,7 @@ pub trait Parser {
     // where
     //     T: Parsable,
     // {
-    //     T::parse_a(self)
+    //     T::parse(self)
     // }
 }
 
@@ -147,19 +149,20 @@ impl<'a> Parser for SliceParser<'a> {
         Ok(SliceParser { input: slice })
     }
 
-    // fn close_bits<'b>(&'b mut self, bits: Bits<'b>)
-    // where
-    //     'a: 'b,
-    // {
-    //     let input = bits.finish();
-    //     self.input = input;
-    // }
-    // fn reset<'b>(&'b mut self, input: &'b [u8]) {
-    //     self.input = input;
-    // }
+    fn next_term<'b, 'c>(&'b mut self, term: &'c str) -> Result<&'b [u8], ParseError> {
+        let (input, term) = tag(term)(self.input)?;
+        self.input = input;
+        Ok(term)
+    }
 
     fn next_u8(&mut self) -> Result<u8, ParseError> {
         let (input, value) = le_u8(self.input)?;
+        self.input = input;
+        Ok(value)
+    }
+
+    fn next_i8(&mut self) -> Result<i8, ParseError> {
+        let (input, value) = le_i8(self.input)?;
         self.input = input;
         Ok(value)
     }
@@ -284,13 +287,14 @@ impl<'a> PagParser<'a> {
     const DEFAULT_PAG_VERSION: u8 = 1;
 
     pub fn new(input: &'a [u8]) -> Result<Self, ParseError> {
-        let (input, header) = FileHeader::parse(input)?;
+        let mut parser = SliceParser { input };
+        let header = FileHeader::parse(&mut parser)?;
         if header.version != Self::DEFAULT_PAG_VERSION {
             return Err(ParseError::UnsupportPagVersion(header.version));
         }
         Ok(Self {
             header,
-            inner: SliceParser { input },
+            inner: parser,
         })
     }
 }
@@ -313,7 +317,7 @@ impl<'a> PagParser<'a> {
         Tag::parse_b(&mut self.inner, ())
     }
 
-    // pub fn parse_all(&mut self) -> Result<TagBlock, ParseError> {
+    // pub fn parsell(&mut self) -> Result<TagBlock, ParseError> {
     //     let (input, result) = TagBlock::parse(self.input)?;
     //     self.input = input;
     //     Ok(result)
@@ -322,11 +326,7 @@ impl<'a> PagParser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, io};
-
-    use nom::Err;
-
-    use crate::format::{FileHeader, StreamParser, TagBlock};
+    use std::fs;
 
     use super::{PagParser, ParseError};
 
@@ -348,40 +348,6 @@ mod tests {
             log::info!("{:?}", tag);
             log::info!("====================");
         }
-
-        Ok(())
-    }
-
-    // #[test]
-    fn test_parse_pag_raw() -> Result<(), ParseError> {
-        let _ = env_logger::builder()
-            .format_module_path(false)
-            .filter_level(log::LevelFilter::Debug)
-            .try_init();
-
-        let pag = fs::read("libpag/resources/apitest/complex_test.pag")?;
-        println!("full length = {} bytes", pag.len());
-
-        let (input, header) = FileHeader::parse(pag.as_slice())
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "parse_file_header"))?;
-        println!("header = {:?}", header);
-
-        let (input, tag_block) = TagBlock::parse(input).map_err(|e| {
-            match e {
-                Err::Incomplete(error) => {
-                    log::error!("Incomplete: {:?}", error);
-                }
-                Err::Error(error) => {
-                    log::error!("Error: {:?}", error.code);
-                }
-                Err::Failure(error) => {
-                    log::error!("Failure: {:?}", error.code);
-                }
-            };
-            io::Error::new(io::ErrorKind::Other, "parse_tag_block")
-        })?;
-        println!("tag_block = {:?}", tag_block);
-        println!("remain = {:?} bytes", input);
 
         Ok(())
     }

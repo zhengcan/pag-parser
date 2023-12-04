@@ -1,20 +1,11 @@
 use std::fmt::Debug;
 
 use macros::ParsableEnum;
-use nom::{
-    bytes::complete::take,
-    number::complete::{le_f32, le_u16, le_u32, le_u8},
-    sequence::tuple,
-    IResult,
-};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::parser::{ParseError, Parser};
 
-use super::{
-    primitive::{parse_encode_i32, parse_encode_u32},
-    AttributeValue, ContextualParsable, Parsable, ParserContext, StreamParser,
-};
+use super::{AttributeValue, ContextualParsable, Parsable, ParserContext};
 
 #[derive(Debug)]
 pub struct Color {
@@ -54,7 +45,7 @@ impl Debug for ByteData {
 }
 
 impl Parsable for ByteData {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let length = parser.next_encoded_u32()?;
         let data = parser.next_bytes(length as usize)?;
         // let (input, data) = take(length)(input)?;
@@ -157,7 +148,7 @@ pub enum MaskMode {
 pub struct Path {}
 
 impl Parsable for Path {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         Ok(Self {})
     }
 }
@@ -194,7 +185,7 @@ impl Point {
 impl AttributeValue for Point {}
 
 impl Parsable for Point {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         parser.next_point()
     }
 }
@@ -231,7 +222,7 @@ impl Ratio {
 impl AttributeValue for Ratio {}
 
 impl Parsable for Ratio {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let numerator = parser.next_encoded_i32()?;
         let denominator = parser.next_encoded_u32()?;
         let result = Self {
@@ -264,7 +255,7 @@ pub struct AlphaStop {
 }
 
 impl Parsable for AlphaStop {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let position = parser.next_u16()?;
         let midpoint = parser.next_u16()?;
         let opacity = parser.next_u8()?;
@@ -273,21 +264,21 @@ impl Parsable for AlphaStop {
             midpoint,
             opacity,
         };
-        log::debug!("parse_AlphaStop => {:?}", result);
+        log::debug!("parselphaStop => {:?}", result);
         Ok(result)
     }
 }
 
 // impl StreamParser for AlphaStop {
 //     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-//         log::debug!("parse_AlphaStop <= {} bytes", input.len());
+//         log::debug!("parselphaStop <= {} bytes", input.len());
 //         let (input, (position, midpoint, opacity)) = tuple((le_u16, le_u16, le_u8))(input)?;
 //         let result = Self {
 //             position,
 //             midpoint,
 //             opacity,
 //         };
-//         log::debug!("parse_AlphaStop => {:?}", result);
+//         log::debug!("parselphaStop => {:?}", result);
 //         Ok((input, result))
 //     }
 // }
@@ -300,7 +291,7 @@ pub struct ColorStop {
 }
 
 impl Parsable for ColorStop {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let position = parser.next_u16()?;
         let midpoint = parser.next_u16()?;
         let color = parser.next_color()?;
@@ -337,19 +328,19 @@ pub struct GradientColor {
 }
 
 impl Parsable for GradientColor {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let alpha_count = parser.next_u32()?;
         let color_count = parser.next_u32()?;
 
         let mut alpha_stop_list = vec![];
         for _ in 0..alpha_count {
-            let stop = AlphaStop::parse_a(parser)?;
+            let stop = AlphaStop::parse(parser)?;
             alpha_stop_list.push(stop);
         }
 
         let mut color_stop_list = vec![];
         for _ in 0..color_count {
-            let stop = ColorStop::parse_a(parser)?;
+            let stop = ColorStop::parse(parser)?;
             color_stop_list.push(stop);
         }
 

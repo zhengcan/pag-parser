@@ -1,19 +1,9 @@
-use nom::{
-    number::complete::{le_f32, le_u32, le_u8},
-    sequence::tuple,
-    IResult,
-};
-
-use crate::{
-    format::{parse_bool, parse_enum, parse_time, AttributeType, Parsable, TagCode},
-    parser::{ParseError, Parser},
-};
+use crate::parser::{ParseError, Parser};
 
 use super::{
-    primitive::{parse_encode_u32, Time},
-    AttributeBlock, AttributeConfig, BlendMode, Color, CompositeOrder, ContextualParsable,
-    LayerType, MaskMode, ParserContext, Path, Point, Ratio, StreamParser, TagBlock, TrackMatteType,
-    WithAttributeBlock,
+    primitive::Time, AttributeConfig, AttributeType, BlendMode, Color, CompositeOrder,
+    ContextualParsable, LayerType, MaskMode, Parsable, ParserContext, Path, Point, Ratio, TagBlock,
+    TagCode, TrackMatteType,
 };
 
 /// LayerBlock 是图层信息的合集。
@@ -293,7 +283,7 @@ impl ContextualParsable for Mask {
         let id = parser.next_id()?;
         let inverted = parser.next_bool()?;
         let mask_mode = parser.next_enum()?;
-        let mask_path = Path::parse_a(parser)?;
+        let mask_path = Path::parse(parser)?;
         let mask_opacity = parser.next_u8()?;
         let mask_expansion = parser.next_f32()?;
         let result = Self {

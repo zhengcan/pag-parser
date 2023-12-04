@@ -1,16 +1,11 @@
-use std::{marker::PhantomData, rc::Rc};
-
-use nom::{number::complete::le_f32, sequence::tuple};
+use nom::sequence::tuple;
 
 use crate::{
-    format::{parse_encode_i32, parse_time, Bits},
+    format::parse_time,
     parser::{ParseError, Parser},
 };
 
-use super::{
-    primitive::{parse_bool, parse_encode_u32},
-    ByteData, ContextualParsable, Parsable, ParserContext, StreamParser, TagBlock, Time,
-};
+use super::{ByteData, ContextualParsable, Parsable, ParserContext, TagBlock, Time};
 
 /// VideoCompositionBlock 存储了 1 个或多个不同尺⼨的视频序列帧。
 #[derive(Debug)]
@@ -84,8 +79,8 @@ impl ContextualParsable for VideoSequence {
             }
             false => (None, None),
         };
-        let sps_data = ByteData::parse_a(parser)?; //parser.parse()?;
-        let pps_data = ByteData::parse_a(parser)?;
+        let sps_data = ByteData::parse(parser)?; //parser.parse()?;
+        let pps_data = ByteData::parse(parser)?;
         let frame_count = parser.next_encoded_u32()?;
 
         let mut bits = parser.new_bits();
@@ -100,12 +95,12 @@ impl ContextualParsable for VideoSequence {
 
         let mut video_frames = vec![];
         for i in 0..frame_count {
-            let mut frame = VideoFrame::parse_a(parser)?;
+            let mut frame = VideoFrame::parse(parser)?;
             frame.is_key_frame = is_key_frame_flag
                 .get(i as usize)
                 .map(|v| *v)
                 .unwrap_or_default();
-            // let (next, frame) = VideoFrame::parse_and(input, |mut frame| {
+            // let (next, frame) = VideoFrame::parsend(input, |mut frame| {
             //     frame.is_key_frame = is_key_frame_flag
             //         .get(i as usize)
             //         .map(|v| *v)
@@ -119,7 +114,7 @@ impl ContextualParsable for VideoSequence {
         if parser.remain() > 0 {
             let count = parser.next_encoded_u32()?;
             for _ in 0..count {
-                let time_range = TimeRange::parse_a(parser)?;
+                let time_range = TimeRange::parse(parser)?;
                 static_time_ranges.push(time_range);
             }
         }
@@ -185,7 +180,7 @@ impl ContextualParsable for VideoSequence {
 
 //         let mut video_frames = vec![];
 //         for i in 0..frame_count {
-//             let (next, frame) = VideoFrame::parse_and(input, |mut frame| {
+//             let (next, frame) = VideoFrame::parsend(input, |mut frame| {
 //                 frame.is_key_frame = is_key_frame_flag
 //                     .get(i as usize)
 //                     .map(|v| *v)
@@ -232,20 +227,20 @@ pub struct TimeRange {
 }
 
 impl Parsable for TimeRange {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let start = parser.next_time()?;
         let end = parser.next_time()?;
         Ok(Self { start, end })
     }
 }
 
-impl StreamParser for TimeRange {
-    fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-        let (input, (start, end)) = tuple((parse_time, parse_time))(input)?;
-        let result = Self { start, end };
-        Ok((input, result))
-    }
-}
+// impl StreamParser for TimeRange {
+//     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+//         let (input, (start, end)) = tuple((parse_time, parse_time))(input)?;
+//         let result = Self { start, end };
+//         Ok((input, result))
+//     }
+// }
 
 /// 视频帧信息。
 #[derive(Debug)]
@@ -256,9 +251,9 @@ pub struct VideoFrame {
 }
 
 impl Parsable for VideoFrame {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let frame = parser.next_time()?;
-        let file_bytes = ByteData::parse_a(parser)?;
+        let file_bytes = ByteData::parse(parser)?;
         let result = Self {
             is_key_frame: false,
             frame,
@@ -271,10 +266,10 @@ impl Parsable for VideoFrame {
 
 // impl StreamParser for VideoFrame {
 //     fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-//         Self::parse_and(input, |_| {})
+//         Self::parsend(input, |_| {})
 //     }
 
-//     fn parse_and<F>(input: &[u8], f: F) -> nom::IResult<&[u8], Self>
+//     fn parsend<F>(input: &[u8], f: F) -> nom::IResult<&[u8], Self>
 //     where
 //         F: Fn(&mut Self),
 //     {

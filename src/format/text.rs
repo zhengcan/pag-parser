@@ -1,19 +1,8 @@
-use nom::{
-    number::complete::{le_f32, le_u8},
-    sequence::tuple,
-};
-
-use crate::{
-    format::{
-        primitive::{parse_encode_u32, parse_string},
-        AttributeConfig, Bits, Point,
-    },
-    parser::{ParseError, Parser},
-};
+use crate::parser::{ParseError, Parser};
 
 use super::{
-    AttributeBlock, AttributeValue, Color, ContextualParsable, ParagraphJustification, Parsable,
-    ParserContext, StreamParser,
+    AttributeConfig, AttributeValue, Color, ContextualParsable, ParagraphJustification, Parsable,
+    ParserContext, Point,
 };
 
 /// FontTables 是字体信息的合集。
@@ -28,7 +17,7 @@ impl ContextualParsable for FontTables {
         let count = parser.next_encoded_u32()?;
         let mut font_datas = vec![];
         for _ in 0..count {
-            let font_data = FontData::parse_a(parser)?;
+            let font_data = FontData::parse(parser)?;
             font_datas.push(font_data);
         }
         let result = Self { count, font_datas };
@@ -61,7 +50,7 @@ pub struct FontData {
 }
 
 impl Parsable for FontData {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let font_family = parser.next_string()?;
         let font_style = parser.next_string()?;
         let result = Self {
@@ -132,7 +121,7 @@ impl TextDocument {
 impl AttributeValue for TextDocument {}
 
 impl Parsable for TextDocument {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let mut bits = parser.new_bits();
         // log::debug!("bits = {:?}", bits);
 

@@ -6,8 +6,6 @@ use nom::{
     IResult,
 };
 
-use super::StreamParser;
-
 pub fn parse_bool(input: &[u8]) -> IResult<&[u8], bool> {
     let (input, value) = le_u8(input)?;
     Ok((input, value > 0))
@@ -67,57 +65,57 @@ pub fn parse_time(input: &[u8]) -> IResult<&[u8], Time> {
     parse_encode_u64(input)
 }
 
-impl StreamParser for bool {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        parse_bool(input)
-    }
+// impl StreamParser for bool {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         parse_bool(input)
+//     }
 
-    fn try_from_bool(value: bool) -> Option<Self> {
-        Some(value)
-    }
-}
+//     fn try_from_bool(value: bool) -> Option<Self> {
+//         Some(value)
+//     }
+// }
 
-impl StreamParser for u8 {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self>
-    where
-        Self: Sized,
-    {
-        le_u8(input)
-    }
-}
+// impl StreamParser for u8 {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self>
+//     where
+//         Self: Sized,
+//     {
+//         le_u8(input)
+//     }
+// }
 
-impl StreamParser for u32 {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self>
-    where
-        Self: Sized,
-    {
-        le_u32(input)
-    }
-}
+// impl StreamParser for u32 {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self>
+//     where
+//         Self: Sized,
+//     {
+//         le_u32(input)
+//     }
+// }
 
-impl StreamParser for i32 {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        le_i32(input)
-    }
-}
+// impl StreamParser for i32 {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         le_i32(input)
+//     }
+// }
 
-impl StreamParser for u64 {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        le_u64(input)
-    }
-}
+// impl StreamParser for u64 {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         le_u64(input)
+//     }
+// }
 
-impl StreamParser for i64 {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        le_i64(input)
-    }
-}
+// impl StreamParser for i64 {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         le_i64(input)
+//     }
+// }
 
-impl StreamParser for f32 {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        le_f32(input)
-    }
-}
+// impl StreamParser for f32 {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         le_f32(input)
+//     }
+// }
 
 pub fn parse_enum<T: From<u8> + Debug>(input: &[u8]) -> IResult<&[u8], T> {
     // log::debug!("parse_enum <= {} bytes", input.len());
@@ -135,8 +133,8 @@ pub fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
     Ok((&input[1..], value))
 }
 
-impl StreamParser for String {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        parse_string(input)
-    }
-}
+// impl StreamParser for String {
+//     fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+//         parse_string(input)
+//     }
+// }

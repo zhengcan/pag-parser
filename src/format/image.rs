@@ -1,11 +1,6 @@
-use nom::{number::complete::le_f32, sequence::tuple};
-
 use crate::parser::{ParseError, Parser};
 
-use super::{
-    primitive::{parse_encode_i32, parse_encode_u32},
-    ByteData, ContextualParsable, Parsable, ParserContext, StreamParser, TagBlock,
-};
+use super::{ByteData, ContextualParsable, Parsable, ParserContext, TagBlock};
 
 /// ImageTables 是图⽚信息的合集。
 #[derive(Debug)]
@@ -19,7 +14,7 @@ impl ContextualParsable for ImageTables {
         let count = parser.next_encoded_i32()?;
         let mut images = vec![];
         for _ in 0..count {
-            let image = ImageBytes::parse_a(parser)?;
+            let image = ImageBytes::parse(parser)?;
             images.push(image);
         }
         let result = Self { count, images };
@@ -101,9 +96,9 @@ pub struct ImageBytes {
 }
 
 impl Parsable for ImageBytes {
-    fn parse_a(parser: &mut impl Parser) -> Result<Self, ParseError> {
+    fn parse(parser: &mut impl Parser) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
-        let file_bytes = ByteData::parse_a(parser)?;
+        let file_bytes = ByteData::parse(parser)?;
         let result = Self { id, file_bytes };
         log::debug!("parse_ImageBytes => {:?}", result);
         Ok(result)
@@ -112,7 +107,7 @@ impl Parsable for ImageBytes {
 
 impl ContextualParsable for ImageBytes {
     fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
-        Self::parse_a(parser)
+        Self::parse(parser)
     }
 }
 
@@ -137,7 +132,7 @@ pub struct ImageBytes2 {
 impl ContextualParsable for ImageBytes2 {
     fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
-        let file_bytes = ByteData::parse_a(parser)?;
+        let file_bytes = ByteData::parse(parser)?;
         let scale_factor = parser.next_f32()?;
         let result = Self {
             id,
@@ -179,7 +174,7 @@ pub struct ImageBytes3 {
 impl ContextualParsable for ImageBytes3 {
     fn parse_b(parser: &mut impl Parser, ctx: impl ParserContext) -> Result<Self, ParseError> {
         let id = parser.next_encoded_u32()?;
-        let file_bytes = ByteData::parse_a(parser)?;
+        let file_bytes = ByteData::parse(parser)?;
         let scale_factor = parser.next_f32()?;
         let width = parser.next_encoded_i32()?;
         let height = parser.next_encoded_i32()?;
