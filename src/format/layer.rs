@@ -36,7 +36,7 @@ impl Parsable for LayerBlock {
 }
 
 impl LayerInfo for LayerBlock {
-    fn get_name(&self) -> Option<&str> {
+    fn get_layer_name(&self) -> Option<&str> {
         let attribute = self.tag_block.tags.iter().find_map(|tag| match &tag.body {
             TagBody::LayerAttributes(attributes) => Some(attributes),
             TagBody::LayerAttributesV2(attributes) => Some(attributes),
