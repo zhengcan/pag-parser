@@ -7,6 +7,16 @@ where
 {
     /// 解析
     fn parse(parser: &mut impl Parser, ctx: impl ParseContext) -> Result<Self, ParseError>;
+
+    /// 直接从布尔值中解析
+    fn from_bool(_value: bool) -> Option<Self> {
+        None
+    }
+
+    /// TODO:
+    fn from_key_frames(_value: &[String]) -> Option<Self> {
+        None
+    }
 }
 
 impl Parsable for f32 {
@@ -41,6 +51,10 @@ impl Parsable for bool {
     #[inline(always)]
     fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         parser.next_bool()
+    }
+
+    fn from_bool(_value: bool) -> Option<Self> {
+        Some(true)
     }
 }
 

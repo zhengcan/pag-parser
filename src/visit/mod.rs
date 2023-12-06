@@ -1,16 +1,16 @@
 use crate::LayerType;
 
-/// 图层信息
+/// Layer info trait
 pub trait LayerInfo {
-    /// 获取图层名称
+    /// Get layer name
     fn get_layer_name(&self) -> Option<&str>;
-    /// 获取图层类型
+    /// Get layer type
     fn get_layer_type(&self) -> LayerType;
 }
 
-/// 可遍历
+/// Traversable trait
 pub trait Traversable {
-    /// 遍历图层
+    /// Traverse all layers
     fn traverse_layer<F>(&self, visitor: F)
     where
         F: Fn(&dyn LayerInfo) + Clone;

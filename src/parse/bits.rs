@@ -1,6 +1,6 @@
 use std::{cmp::min, fmt::Debug, num::NonZeroUsize};
 
-use super::{parser::SliceParser, ParseError};
+use super::{parser::StreamParser, ParseError};
 
 #[derive(Clone)]
 pub struct Bits<'a> {
@@ -41,7 +41,7 @@ impl<'a> Bits<'a> {
         }
     }
 
-    pub fn finish<'b>(self) -> Result<SliceParser<'b>, ParseError>
+    pub fn finish<'b>(self) -> Result<StreamParser<'b>, ParseError>
     where
         'a: 'b,
     {
@@ -52,6 +52,6 @@ impl<'a> Bits<'a> {
             )));
         }
         let buffer = &self.buffer[offset..];
-        Ok(SliceParser::new(buffer))
+        Ok(StreamParser::new(buffer))
     }
 }

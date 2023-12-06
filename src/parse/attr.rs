@@ -1,4 +1,4 @@
-use super::{bits::Bits, parsable::Parsable, parser::SliceParser};
+use super::{bits::Bits, parsable::Parsable, parser::StreamParser};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttributeType {
@@ -67,39 +67,10 @@ impl AttributeFlag {
     };
 }
 
-pub trait AttributeValue
-where
-    Self: Sized,
-{
-    fn try_from_bool(_value: bool) -> Option<Self> {
-        None
-    }
-
-    fn try_from_key_frames(_key_frames: Vec<String>) -> Option<Self> {
-        None
-    }
-}
-
-impl AttributeValue for f32 {}
-
-impl AttributeValue for u8 {}
-
-impl AttributeValue for u32 {}
-
-impl AttributeValue for u64 {}
-
-impl AttributeValue for bool {
-    fn try_from_bool(value: bool) -> Option<Self> {
-        Some(value)
-    }
-}
-
-impl AttributeValue for String {}
-
 #[derive(Debug)]
 enum AttributeBlockState<'a> {
     Flag(Bits<'a>),
-    Content(SliceParser<'a>),
+    Content(StreamParser<'a>),
 }
 
 #[derive(Debug)]
@@ -109,7 +80,6 @@ pub struct AttributeBlock<'a> {
 
 impl<'a> AttributeBlock<'a> {
     pub fn new(input: &'a [u8]) -> Self {
-        // log::warn!("AttributeBlock: << {:?}", &input[0..16]);
         AttributeBlock {
             state: AttributeBlockState::Flag(Bits::new(input)),
         }
@@ -167,7 +137,7 @@ impl<'a> AttributeBlock<'a> {
         (r#type, flag): (impl Into<AttributeType>, AttributeFlag),
     ) -> Option<T>
     where
-        T: Parsable + AttributeValue,
+        T: Parsable,
     {
         if let AttributeBlockState::Flag(bits) = &self.state {
             match bits.clone().finish() {
@@ -188,7 +158,7 @@ impl<'a> AttributeBlock<'a> {
         let r#type = r#type.into();
         match r#type {
             AttributeType::NotExisted => None,
-            AttributeType::BitFlag => T::try_from_bool(flag.exist),
+            AttributeType::BitFlag => T::from_bool(flag.exist),
             AttributeType::FixedValue | AttributeType::Value => {
                 if flag.exist {
                     T::parse(parser, ()).ok()
@@ -199,8 +169,8 @@ impl<'a> AttributeBlock<'a> {
             _ => {
                 if flag.exist {
                     if flag.animatable {
-                        let key_frames = vec![];
-                        T::try_from_key_frames(key_frames)
+                        let key_frames = Vec::<String>::new();
+                        T::from_key_frames(key_frames.as_slice())
                     } else {
                         T::parse(parser, ()).ok()
                     }

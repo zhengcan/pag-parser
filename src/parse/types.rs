@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use concat_idents::concat_idents;
 
-use super::{AttributeValue, Parsable, ParseContext, ParseError, Parser};
+use super::{Parsable, ParseContext, ParseError, Parser};
 
 macro_rules! define_encoded_num {
     ($t:ident, $r:ident) => {
@@ -69,8 +69,6 @@ macro_rules! define_encoded_num {
                 write!(f, "{}", self.0)
             }
         }
-
-        impl AttributeValue for $t {}
 
         impl Parsable for $t {
             fn parse(

@@ -89,17 +89,17 @@ pub trait Parser {
 }
 
 #[derive(Debug)]
-pub struct SliceParser<'a> {
+pub struct StreamParser<'a> {
     input: &'a [u8],
 }
 
-impl<'a> SliceParser<'a> {
+impl<'a> StreamParser<'a> {
     pub fn new(input: &'a [u8]) -> Self {
         Self { input }
     }
 }
 
-impl<'a> Parser for SliceParser<'a> {
+impl<'a> Parser for StreamParser<'a> {
     fn buffer(&self) -> &[u8] {
         self.input
     }
@@ -111,7 +111,7 @@ impl<'a> Parser for SliceParser<'a> {
     fn new_slice(&mut self, length: usize) -> Result<impl Parser, ParseError> {
         let (input, slice) = take(length)(self.input)?;
         self.input = input;
-        Ok(SliceParser { input: slice })
+        Ok(StreamParser { input: slice })
     }
 
     fn next_term<'b>(&'b mut self, term: &str) -> Result<&'b [u8], ParseError> {

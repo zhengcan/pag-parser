@@ -1,5 +1,9 @@
+/// File definitions
 mod format;
-pub mod parse;
-mod visit;
-
 pub use format::*;
+
+/// Parser
+pub mod parse;
+
+/// Visit the file document
+pub mod visit;

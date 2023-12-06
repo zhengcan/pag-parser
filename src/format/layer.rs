@@ -56,12 +56,6 @@ impl Traversable for LayerBlock {
     where
         F: Fn(&dyn LayerInfo),
     {
-        // let attribute = self.tag_block.tags.iter().find_map(|tag| match &tag.body {
-        //     TagBody::LayerAttributes(attributes) => Some(attributes),
-        //     TagBody::LayerAttributesV2(attributes) => Some(attributes),
-        //     TagBody::LayerAttributesV3(attributes) => Some(attributes),
-        //     _ => None,
-        // });
         visitor(self)
     }
 }

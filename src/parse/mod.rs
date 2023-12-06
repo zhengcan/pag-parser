@@ -6,36 +6,57 @@ mod parsable;
 mod parser;
 mod types;
 
-pub use attr::{AttributeConfig, AttributeType, AttributeValue};
+pub use attr::{AttributeConfig, AttributeType};
 pub use context::ParseContext;
 pub use error::ParseError;
 pub use parsable::Parsable;
-pub use parser::{Parser, SliceParser};
+pub use parser::{Parser, StreamParser};
 pub use types::*;
 
 use crate::{FileHeader, Pag, Tag};
 
+/// PAG File Parser
 #[derive(Debug)]
 pub struct PagParser<'a> {
+    /// The header of file
     header: FileHeader,
-    inner: SliceParser<'a>,
+    /// The internal bytes based parser
+    inner: StreamParser<'a>,
 }
 
 impl<'a> PagParser<'a> {
     const DEFAULT_PAG_VERSION: u8 = 1;
 
+    /// Create new instance
+    /// - input: the content of PAG file
     pub fn new(input: &'a [u8]) -> Result<Self, ParseError> {
-        let mut parser = SliceParser::new(input);
+        let mut parser = StreamParser::new(input);
+
+        // Parse and check file header
         let header = FileHeader::parse(&mut parser, ())?;
         if header.version != Self::DEFAULT_PAG_VERSION {
             return Err(ParseError::UnsupportPagVersion(header.version));
         }
+
+        // Return parser
         Ok(Self {
             header,
             inner: parser,
         })
     }
 
+    /// Parser next tag section
+    pub fn next_tag(&mut self) -> Option<Result<Tag, ParseError>> {
+        if self.inner.is_empty() {
+            None
+        } else {
+            Some(Tag::parse(&mut self.inner, ()))
+        }
+    }
+}
+
+impl<'a> PagParser<'a> {
+    /// Parse whole input to a Pag object
     pub fn parse_all(input: &'a [u8]) -> Result<Pag, ParseError> {
         let mut parser = Self::new(input)?;
         let mut pag = Pag::new(parser.header.clone());
@@ -43,18 +64,6 @@ impl<'a> PagParser<'a> {
             pag.push_tag(tag?);
         }
         Ok(pag)
-    }
-
-    pub fn pag_version(&self) -> u8 {
-        self.header.version
-    }
-
-    pub fn next_tag(&mut self) -> Option<Result<Tag, ParseError>> {
-        if self.inner.is_empty() {
-            None
-        } else {
-            Some(Tag::parse(&mut self.inner, ()))
-        }
     }
 }
 
@@ -100,7 +109,7 @@ mod tests {
         // let name = "libpag/resources/apitest/ImageLayerBounds.pag";
         let mut names = vec![];
         // names.push("tests/12767246.pag");
-        names.push("tests/12767270.pag");
+        names.push("tests/pags/12767270.pag");
         for name in names {
             match parse_single(Path::new(name)) {
                 Ok(_) => {}

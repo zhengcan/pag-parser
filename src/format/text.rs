@@ -1,6 +1,4 @@
-use crate::parse::{
-    AttributeConfig, AttributeValue, EncodedUint32, Parsable, ParseContext, ParseError, Parser,
-};
+use crate::parse::{AttributeConfig, EncodedUint32, Parsable, ParseContext, ParseError, Parser};
 
 use super::{Color, ParagraphJustification, Point};
 
@@ -87,8 +85,6 @@ impl TextDocument {
         Self::default()
     }
 }
-
-impl AttributeValue for TextDocument {}
 
 impl Parsable for TextDocument {
     fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
@@ -186,7 +182,6 @@ impl Parsable for TextDocument {
 /// TextPathOption ⽂本绘制信息，包含：绘制路径，前后左右间距等。
 #[derive(Debug)]
 pub struct TextPathOption {
-    // pub inner: AttributeBlock,
     pub path: EncodedUint32,
     pub reversed_path: bool,
     pub perpendicular_to_path: bool,
@@ -213,7 +208,6 @@ impl Parsable for TextPathOption {
             first_margin: block.read(first_margin).unwrap_or(0.),
             last_margin: block.read(last_margin).unwrap_or(0.),
         };
-        // let input = block.finish();
 
         log::debug!("parse_TextPathOption => {:?}", result);
         Ok(result)
@@ -222,7 +216,6 @@ impl Parsable for TextPathOption {
 
 #[derive(Debug)]
 pub struct TextMoreOption {
-    // pub inner: AttributeBlock,
     pub anchor_point_grouping: ParagraphJustification,
     pub grouping_alignment: Point,
 }
@@ -240,7 +233,6 @@ impl Parsable for TextMoreOption {
                 .unwrap_or(ParagraphJustification::LeftJustify),
             grouping_alignment: block.read(grouping_alignment).unwrap_or(Point::zero()),
         };
-        // let input = block.finish();
 
         log::debug!("parse_TextMoreOption => {:?}", result);
         Ok(result)
@@ -250,7 +242,6 @@ impl Parsable for TextMoreOption {
 /// TextSource ⽂本信息，包含：⽂本，字体，⼤⼩，颜⾊等基础信息。
 #[derive(Debug)]
 pub struct TextSource {
-    // pub inner: AttributeBlock,
     pub source_text: TextDocument,
 }
 

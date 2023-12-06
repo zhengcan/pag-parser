@@ -3,9 +3,7 @@ use std::fmt::Debug;
 use macros::ParsableEnum;
 use num_enum::{FromPrimitive, IntoPrimitive};
 
-use crate::parse::{
-    AttributeValue, EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser,
-};
+use crate::parse::{EncodedInt32, EncodedUint32, Parsable, ParseContext, ParseError, Parser};
 
 #[derive(Debug)]
 pub struct Color {
@@ -150,8 +148,6 @@ impl Point {
     }
 }
 
-impl AttributeValue for Point {}
-
 impl Parsable for Point {
     fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {
         let x = parser.next_f32()?;
@@ -178,8 +174,6 @@ impl Ratio {
         }
     }
 }
-
-impl AttributeValue for Ratio {}
 
 impl Parsable for Ratio {
     fn parse(parser: &mut impl Parser, _ctx: impl ParseContext) -> Result<Self, ParseError> {

@@ -14,8 +14,5 @@ pub fn derive_parsable_enum(input: TokenStream) -> TokenStream {
                 parser.next_enum()
             }
         }
-
-        impl crate::parse::AttributeValue for #name {
-        }
     })
 }
