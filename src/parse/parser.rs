@@ -34,7 +34,7 @@ pub trait Parser {
 
     fn advance(&mut self, count: usize);
 
-    fn new_slice(&mut self, length: usize) -> Result<impl Parser, ParseError>;
+    fn new_slice<'b>(&'b mut self, length: usize) -> Result<StreamParser<'b>, ParseError>;
 
     #[inline(always)]
     fn new_attribute_block(&self) -> AttributeBlock {
@@ -108,7 +108,7 @@ impl<'a> Parser for StreamParser<'a> {
         self.input = &self.input[count..];
     }
 
-    fn new_slice(&mut self, length: usize) -> Result<impl Parser, ParseError> {
+    fn new_slice(&mut self, length: usize) -> Result<StreamParser<'a>, ParseError> {
         let (input, slice) = take(length)(self.input)?;
         self.input = input;
         Ok(StreamParser { input: slice })
